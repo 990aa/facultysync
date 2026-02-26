@@ -5,6 +5,7 @@ import edu.facultysync.model.*;
 import edu.facultysync.model.ScheduledEvent.EventType;
 
 import java.io.*;
+import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
