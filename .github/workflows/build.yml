@@ -33,11 +33,11 @@ jobs:
 
       - name: Build with Gradle
         shell: pwsh
-        run: gradle clean build distZip2 -x test --no-daemon
+        run: ./gradlew clean build distZip2 -x test --no-daemon
 
       - name: Run tests
         shell: pwsh
-        run: gradle test --no-daemon
+        run: ./gradlew test --no-daemon
 
       - name: Build MSI with jpackage
         shell: pwsh
@@ -46,7 +46,7 @@ jobs:
           $installDir = "build/install/facultysync"
 
           # Ensure installDist output exists
-          gradle installDist --no-daemon
+          ./gradlew installDist --no-daemon
 
           # jpackage to build MSI (WiX is pre-installed on windows-latest)
           jpackage `
