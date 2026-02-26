@@ -19,7 +19,7 @@ import java.net.URL;
 public class App extends Application {
 
     /** Application version – updated by release script. */
-    public static final String VERSION = "0.1.0";
+    public static final String VERSION = "0.1.1";
 
     private DatabaseManager dbManager;
 

@@ -1,0 +1,40 @@
+erDiagram
+    departments {
+        INTEGER dept_id PK "PRIMARY KEY AUTOINCREMENT"
+        TEXT name UK "NOT NULL UNIQUE"
+    }
+
+    professors {
+        INTEGER prof_id PK "PRIMARY KEY AUTOINCREMENT"
+        TEXT name "NOT NULL"
+        INTEGER dept_id FK "REFERENCES departments(dept_id)"
+    }
+
+    courses {
+        INTEGER course_id PK "PRIMARY KEY AUTOINCREMENT"
+        TEXT course_code UK "NOT NULL UNIQUE"
+        INTEGER prof_id FK "REFERENCES professors(prof_id)"
+        INTEGER enrollment_count "DEFAULT 0"
+    }
+
+    locations {
+        INTEGER loc_id PK "PRIMARY KEY AUTOINCREMENT"
+        TEXT building "NOT NULL"
+        TEXT room_number "NOT NULL"
+        INTEGER capacity "NULLABLE"
+        INTEGER has_projector "DEFAULT 0 (boolean)"
+    }
+
+    scheduled_events {
+        INTEGER event_id PK "PRIMARY KEY AUTOINCREMENT"
+        INTEGER course_id FK "REFERENCES courses(course_id)"
+        INTEGER loc_id FK "REFERENCES locations(loc_id) NULLABLE"
+        TEXT event_type "CHECK(Lecture|Exam|Office Hours)"
+        INTEGER start_epoch "NOT NULL (epoch ms)"
+        INTEGER end_epoch "NOT NULL (epoch ms)"
+    }
+
+    departments ||--o{ professors : "has"
+    professors ||--o{ courses : "teaches"
+    courses ||--o{ scheduled_events : "has"
+    locations ||--o{ scheduled_events : "hosts"

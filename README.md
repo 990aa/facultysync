@@ -4,7 +4,7 @@ A modern JavaFX desktop application for managing university course schedules, de
 
 ## Download
 
-> **Latest Release:** [v0.1.0](https://github.com/990aa/facultysync/releases/latest)
+> **Latest Release:** [v0.1.1](https://github.com/990aa/facultysync/releases/latest)
 
 Download the standalone Windows distribution from the [Releases](https://github.com/990aa/facultysync/releases) page. No JDK installation required.
 
@@ -62,6 +62,32 @@ gradle build      # Compile + run all tests
 gradle run        # Launch the application
 gradle test       # Run all automated tests
 ```
+
+### Seed the Database
+
+FacultySync automatically seeds demo data on first launch. To manually seed the database and run conflict analysis + auto-resolve from the command line:
+
+```bash
+gradle seedAndResolve
+```
+
+This inserts 5 departments, 9 professors, 10 courses, 10 locations, and 30+ scheduled events (including 4 intentional conflicts), then runs the full conflict detection and auto-resolution pipeline with console output.
+
+### Build Standalone Distribution (Windows)
+
+To build a portable `.zip` distribution for Windows:
+
+```bash
+gradle distZip2
+```
+
+The output is placed at `build/distributions/FacultySync-<version>-windows.zip`. Extract it and run:
+
+```
+FacultySync-<version>-windows\bin\facultysync.bat
+```
+
+This bundle includes all dependencies and can be distributed to any Windows machine with Java 25 installed.
 
 ## Test Coverage
 
@@ -132,10 +158,12 @@ src/main/java/edu/facultysync/
 ## Release
 
 The project includes a PowerShell release script that automates:
-1. Building the standalone distribution (via `gradle jpackage`)
-2. Semantic version bumping (major/minor/patch)
-3. Creating a GitHub release with the distribution attached
-4. Updating the README download link
+1. Semantic version bumping (major/minor/patch) in `build.gradle`, `App.java`, and `README.md`
+2. Building the standalone distribution zip (via `gradle distZip2`)
+3. Running all tests
+4. Committing, tagging, and pushing to GitHub
+5. Creating a GitHub Release with the zip attached
+6. Triggering the GitHub Actions workflow to build an MSI installer
 
 ```powershell
 # Release with version bump
@@ -143,7 +171,18 @@ The project includes a PowerShell release script that automates:
 .\release.ps1 -BumpType minor    # 0.1.0 → 0.2.0
 .\release.ps1 -BumpType major    # 0.1.0 → 1.0.0
 .\release.ps1 -Version 0.1.0     # Explicit version
+
+# Preview (no changes made)
+.\release.ps1 -BumpType patch -DryRun
 ```
+
+### CI/CD
+
+On every tag push (`v*`), a GitHub Actions workflow:
+1. Builds the project with Java 25 (Temurin)
+2. Runs all tests
+3. Creates an MSI installer with `jpackage` + WiX Toolset
+4. Attaches both `.zip` and `.msi` to the GitHub Release
 
 ## License
 

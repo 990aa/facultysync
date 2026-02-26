@@ -23,36 +23,45 @@ public class CustomTitleBar extends HBox {
     private double yOffset = 0;
     private boolean maximized = false;
     private double prevX, prevY, prevW, prevH;
+    private final Button minimizeBtn;
+    private final Button maximizeBtn;
+    private final Button closeBtn;
 
     public CustomTitleBar(Stage stage, String title) {
+        setId("customTitleBar");
         getStyleClass().add("custom-title-bar");
         setPadding(new Insets(0, 0, 0, 12));
         setAlignment(Pos.CENTER_LEFT);
         setPrefHeight(40);
         setMinHeight(40);
         setMaxHeight(40);
+        setVisible(true);
+        setManaged(true);
 
-        // App icon (unicode glyph)
-        Label icon = new Label("\uD83C\uDF93"); // graduation cap
+        // App icon
+        Label icon = new Label("\uD83C\uDF93");
+        icon.setId("titleBarIcon");
         icon.getStyleClass().add("title-bar-icon");
 
         // Title text
         Label titleLabel = new Label(title);
+        titleLabel.setId("titleBarLabel");
         titleLabel.getStyleClass().add("title-bar-label");
 
-        // Spacer
+        // Spacer pushes buttons to the right
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // Window control buttons
-        Button minimizeBtn = createControlButton("\u2014", "title-btn-minimize"); // em dash
-        Button maximizeBtn = createControlButton("\u25A1", "title-btn-maximize"); // square
-        Button closeBtn = createControlButton("\u2715", "title-btn-close");       // X mark
+        // Window control buttons – use common font glyphs
+        minimizeBtn = createControlButton("\u2013", "title-btn-minimize"); // en dash
+        minimizeBtn.setId("minimizeBtn");
+        maximizeBtn = createControlButton("\u25A1", "title-btn-maximize"); // white square
+        maximizeBtn.setId("maximizeBtn");
+        closeBtn = createControlButton("\u2715", "title-btn-close");      // multiplication X
+        closeBtn.setId("closeBtn");
 
         minimizeBtn.setOnAction(e -> stage.setIconified(true));
-
-        maximizeBtn.setOnAction(e -> toggleMaximize(stage, maximizeBtn));
-
+        maximizeBtn.setOnAction(e -> toggleMaximize(stage));
         closeBtn.setOnAction(e -> {
             stage.close();
             javafx.application.Platform.exit();
@@ -60,7 +69,7 @@ public class CustomTitleBar extends HBox {
 
         getChildren().addAll(icon, titleLabel, spacer, minimizeBtn, maximizeBtn, closeBtn);
 
-        // Drag support
+        // ---- Drag to move ----
         setOnMousePressed(event -> {
             if (!maximized) {
                 xOffset = event.getSceneX();
@@ -70,7 +79,6 @@ public class CustomTitleBar extends HBox {
 
         setOnMouseDragged(event -> {
             if (maximized) {
-                // Restore from maximized when dragging
                 maximized = false;
                 maximizeBtn.setText("\u25A1");
                 stage.setWidth(prevW);
@@ -84,68 +92,63 @@ public class CustomTitleBar extends HBox {
             stage.setY(event.getScreenY() - yOffset);
         });
 
-        // Double-click to maximize/restore
+        // Double-click to toggle maximize
         setOnMouseClicked(event -> {
             if (event.getClickCount() == 2) {
-                toggleMaximize(stage, maximizeBtn);
+                toggleMaximize(stage);
             }
         });
     }
 
     /**
-     * Attach resize handlers to the scene root after the scene is set.
-     * Must be called after primaryStage.setScene().
+     * Attach edge-resize handlers to the scene root.
+     * Must be called AFTER primaryStage.setScene().
      */
     public void installResizeHandlers(Stage stage) {
         final int RESIZE_MARGIN = 6;
+        Node root = stage.getScene().getRoot();
 
-        stage.getScene().getRoot().setOnMouseMoved(event -> {
+        root.addEventFilter(MouseEvent.MOUSE_MOVED, event -> {
             if (maximized) { stage.getScene().setCursor(Cursor.DEFAULT); return; }
-            double x = event.getX();
-            double y = event.getY();
-            double w = stage.getScene().getWidth();
-            double h = stage.getScene().getHeight();
+            double x = event.getX(), y = event.getY();
+            double w = stage.getScene().getWidth(), h = stage.getScene().getHeight();
 
-            boolean left = x < RESIZE_MARGIN;
-            boolean right = x > w - RESIZE_MARGIN;
-            boolean top = y < RESIZE_MARGIN;
-            boolean bottom = y > h - RESIZE_MARGIN;
+            boolean l = x < RESIZE_MARGIN, r = x > w - RESIZE_MARGIN;
+            boolean t = y < RESIZE_MARGIN, b = y > h - RESIZE_MARGIN;
 
-            if (left && top) stage.getScene().setCursor(Cursor.NW_RESIZE);
-            else if (right && top) stage.getScene().setCursor(Cursor.NE_RESIZE);
-            else if (left && bottom) stage.getScene().setCursor(Cursor.SW_RESIZE);
-            else if (right && bottom) stage.getScene().setCursor(Cursor.SE_RESIZE);
-            else if (left) stage.getScene().setCursor(Cursor.W_RESIZE);
-            else if (right) stage.getScene().setCursor(Cursor.E_RESIZE);
-            else if (top) stage.getScene().setCursor(Cursor.N_RESIZE);
-            else if (bottom) stage.getScene().setCursor(Cursor.S_RESIZE);
+            if (l && t) stage.getScene().setCursor(Cursor.NW_RESIZE);
+            else if (r && t) stage.getScene().setCursor(Cursor.NE_RESIZE);
+            else if (l && b) stage.getScene().setCursor(Cursor.SW_RESIZE);
+            else if (r && b) stage.getScene().setCursor(Cursor.SE_RESIZE);
+            else if (l) stage.getScene().setCursor(Cursor.W_RESIZE);
+            else if (r) stage.getScene().setCursor(Cursor.E_RESIZE);
+            else if (t) stage.getScene().setCursor(Cursor.N_RESIZE);
+            else if (b) stage.getScene().setCursor(Cursor.S_RESIZE);
             else stage.getScene().setCursor(Cursor.DEFAULT);
         });
 
-        final double[] dragStart = new double[4]; // x, y, w, h
+        final double[] dragStart = new double[4]; // screenX, screenY, stageW, stageH
 
-        stage.getScene().getRoot().setOnMousePressed(event -> {
+        root.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
             dragStart[0] = event.getScreenX();
             dragStart[1] = event.getScreenY();
             dragStart[2] = stage.getWidth();
             dragStart[3] = stage.getHeight();
         });
 
-        stage.getScene().getRoot().setOnMouseDragged(event -> {
+        root.addEventFilter(MouseEvent.MOUSE_DRAGGED, event -> {
             if (maximized) return;
             Cursor cursor = stage.getScene().getCursor();
-            if (cursor == Cursor.DEFAULT) return;
+            if (cursor == null || cursor == Cursor.DEFAULT) return;
 
             double dx = event.getScreenX() - dragStart[0];
             double dy = event.getScreenY() - dragStart[1];
 
             if (cursor == Cursor.E_RESIZE || cursor == Cursor.NE_RESIZE || cursor == Cursor.SE_RESIZE) {
-                double newW = Math.max(stage.getMinWidth(), dragStart[2] + dx);
-                stage.setWidth(newW);
+                stage.setWidth(Math.max(stage.getMinWidth(), dragStart[2] + dx));
             }
             if (cursor == Cursor.S_RESIZE || cursor == Cursor.SE_RESIZE || cursor == Cursor.SW_RESIZE) {
-                double newH = Math.max(stage.getMinHeight(), dragStart[3] + dy);
-                stage.setHeight(newH);
+                stage.setHeight(Math.max(stage.getMinHeight(), dragStart[3] + dy));
             }
             if (cursor == Cursor.W_RESIZE || cursor == Cursor.NW_RESIZE || cursor == Cursor.SW_RESIZE) {
                 double newW = Math.max(stage.getMinWidth(), dragStart[2] - dx);
@@ -164,7 +167,7 @@ public class CustomTitleBar extends HBox {
         });
     }
 
-    private void toggleMaximize(Stage stage, Button maximizeBtn) {
+    private void toggleMaximize(Stage stage) {
         if (maximized) {
             stage.setX(prevX);
             stage.setY(prevY);
@@ -183,7 +186,7 @@ public class CustomTitleBar extends HBox {
             stage.setY(screen.getMinY());
             stage.setWidth(screen.getWidth());
             stage.setHeight(screen.getHeight());
-            maximizeBtn.setText("\u25A3"); // filled square
+            maximizeBtn.setText("\u25A3");
             maximized = true;
         }
     }
@@ -198,7 +201,8 @@ public class CustomTitleBar extends HBox {
         return btn;
     }
 
-    public boolean isMaximized() {
-        return maximized;
-    }
+    public boolean isMaximized() { return maximized; }
+    public Button getMinimizeButton() { return minimizeBtn; }
+    public Button getMaximizeButton() { return maximizeBtn; }
+    public Button getCloseButton() { return closeBtn; }
 }

@@ -11,23 +11,30 @@
     5. Commits, tags, and pushes to GitHub
     6. Creates a GitHub Release with the distribution zip attached
 
+    Use -DryRun to preview all steps without modifying files, git, or GitHub.
+
 .PARAMETER BumpType
     Semantic version bump type: major, minor, or patch.
 
 .PARAMETER Version
     Explicit version string (e.g., "0.1.0"). Overrides BumpType.
 
+.PARAMETER DryRun
+    Preview mode – shows what would be done without making any changes.
+
 .EXAMPLE
     .\release.ps1 -Version 0.1.0
     .\release.ps1 -BumpType patch
-    .\release.ps1 -BumpType minor
+    .\release.ps1 -BumpType minor -DryRun
 #>
 
 param(
     [ValidateSet("major", "minor", "patch")]
     [string]$BumpType,
 
-    [string]$Version
+    [string]$Version,
+
+    [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -83,6 +90,7 @@ function Update-VersionInFiles {
 # --- Main ---
 
 Write-Host "`n=== FacultySync Release Script ===" -ForegroundColor Cyan
+if ($DryRun) { Write-Host "[DRY RUN] No files, git, or GitHub will be modified.`n" -ForegroundColor Magenta }
 
 # Determine version
 $currentVersion = Get-CurrentVersion
@@ -100,34 +108,58 @@ Write-Host "New version:     $newVersion" -ForegroundColor Yellow
 
 # Update version in source files
 if ($newVersion -ne $currentVersion) {
-    Update-VersionInFiles -OldVersion $currentVersion -NewVersion $newVersion
+    if ($DryRun) {
+        Write-Host "[DRY RUN] Would update version $currentVersion -> $newVersion in build.gradle, App.java, README.md" -ForegroundColor Magenta
+    } else {
+        Update-VersionInFiles -OldVersion $currentVersion -NewVersion $newVersion
+    }
 }
 
 # Build
 Write-Host "`n--- Building distribution ---" -ForegroundColor Cyan
-& gradle clean distZip2 2>&1 | ForEach-Object { Write-Host $_ }
-if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+if ($DryRun) {
+    Write-Host "[DRY RUN] Would run: gradle clean distZip2" -ForegroundColor Magenta
+} else {
+    & gradle clean distZip2 2>&1 | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+}
 
 $zipName = "FacultySync-$newVersion-windows.zip"
 $zipPath = "build/distributions/$zipName"
-if (-not (Test-Path $zipPath)) {
-    throw "Distribution zip not found: $zipPath"
+if (-not $DryRun) {
+    if (-not (Test-Path $zipPath)) {
+        throw "Distribution zip not found: $zipPath"
+    }
+    Write-Host "[OK] Built $zipName ($([math]::Round((Get-Item $zipPath).Length / 1MB, 1)) MB)" -ForegroundColor Green
+} else {
+    Write-Host "[DRY RUN] Would produce: $zipPath" -ForegroundColor Magenta
 }
-Write-Host "[OK] Built $zipName ($([math]::Round((Get-Item $zipPath).Length / 1MB, 1)) MB)" -ForegroundColor Green
 
 # Run tests
 Write-Host "`n--- Running tests ---" -ForegroundColor Cyan
-& gradle test 2>&1 | ForEach-Object { Write-Host $_ }
-if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
-Write-Host "[OK] All tests passed" -ForegroundColor Green
+if ($DryRun) {
+    Write-Host "[DRY RUN] Would run: gradle test" -ForegroundColor Magenta
+} else {
+    & gradle test 2>&1 | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
+    Write-Host "[OK] All tests passed" -ForegroundColor Green
+}
 
 # Git commit and tag
 Write-Host "`n--- Git operations ---" -ForegroundColor Cyan
-git add -A
-git commit -m "release: v$newVersion" --allow-empty
-git tag -a "v$newVersion" -m "Release v$newVersion" -f
-git push origin main --tags -f
-Write-Host "[OK] Committed and pushed v$newVersion" -ForegroundColor Green
+if ($DryRun) {
+    Write-Host "[DRY RUN] Would run:" -ForegroundColor Magenta
+    Write-Host "  git add -A" -ForegroundColor Magenta
+    Write-Host "  git commit -m `"release: v$newVersion`"" -ForegroundColor Magenta
+    Write-Host "  git tag -a `"v$newVersion`" -m `"Release v$newVersion`"" -ForegroundColor Magenta
+    Write-Host "  git push origin main --tags" -ForegroundColor Magenta
+} else {
+    git add -A
+    git commit -m "release: v$newVersion" --allow-empty
+    git tag -a "v$newVersion" -m "Release v$newVersion" -f
+    git push origin main --tags -f
+    Write-Host "[OK] Committed and pushed v$newVersion" -ForegroundColor Green
+}
 
 # Create GitHub Release
 Write-Host "`n--- Creating GitHub Release ---" -ForegroundColor Cyan
@@ -151,13 +183,24 @@ $releaseNotes = @"
 Download ``$zipName`` and extract to run FacultySync.
 "@
 
-gh release create "v$newVersion" $zipPath `
-    --title "FacultySync v$newVersion" `
-    --notes $releaseNotes `
-    --latest
+if ($DryRun) {
+    Write-Host "[DRY RUN] Would run: gh release create `"v$newVersion`" $zipPath --title `"FacultySync v$newVersion`" --latest" -ForegroundColor Magenta
+    Write-Host "[DRY RUN] Release notes:" -ForegroundColor Magenta
+    Write-Host $releaseNotes -ForegroundColor DarkGray
+} else {
+    gh release create "v$newVersion" $zipPath `
+        --title "FacultySync v$newVersion" `
+        --notes $releaseNotes `
+        --latest
 
-if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed" }
-Write-Host "[OK] GitHub release v$newVersion created with $zipName attached" -ForegroundColor Green
+    if ($LASTEXITCODE -ne 0) { throw "GitHub release creation failed" }
+    Write-Host "[OK] GitHub release v$newVersion created with $zipName attached" -ForegroundColor Green
+}
 
 Write-Host "`n=== Release v$newVersion complete! ===" -ForegroundColor Cyan
-Write-Host "View release: https://github.com/990aa/facultysync/releases/tag/v$newVersion`n"
+if ($DryRun) {
+    Write-Host "[DRY RUN] No changes were made. Remove -DryRun to execute for real." -ForegroundColor Magenta
+} else {
+    Write-Host "View release: https://github.com/990aa/facultysync/releases/tag/v$newVersion"
+}
+Write-Host ""
