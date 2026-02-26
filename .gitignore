@@ -1,0 +1,23 @@
+# --- Gradle ---
+.gradle/
+build/
+
+# --- VS Code / Java Extension ---
+.project
+.classpath
+.settings/
+bin/
+.vscode/
+# Note: If you want to share your launch.json with teammates, 
+# you can comment out the .vscode/ line above and use:
+# !.vscode/launch.json
+
+# --- Java / OS ---
+*.class
+*.log
+.DS_Store
+Thumbs.db
+
+# --- JavaFX Specific ---
+# If you ever use a local SDK path in a properties file
+local.properties
