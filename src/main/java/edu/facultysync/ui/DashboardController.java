@@ -5,6 +5,7 @@ import edu.facultysync.io.CsvImporter;
 import edu.facultysync.io.ReportExporter;
 import edu.facultysync.model.*;
 import edu.facultysync.model.ConflictResult.Severity;
+import edu.facultysync.service.AutoResolver;
 import edu.facultysync.service.ConflictEngine;
 import edu.facultysync.service.DataCache;
 
@@ -29,7 +30,8 @@ import java.util.*;
 
 /**
  * Main dashboard UI controller for FacultySync.
- * Uses a BorderPane layout: left control panel, center schedule/conflict view.
+ * Uses a BorderPane layout: left sidebar, center with Home/Schedule/Conflicts/Calendar/Analytics tabs.
+ * Integrates toast notifications, auto-resolve, drag-drop calendar, and analytics charts.
  */
 public class DashboardController {
 
@@ -39,15 +41,22 @@ public class DashboardController {
     private final Stage stage;
     private final DataCache cache;
     private final ConflictEngine conflictEngine;
+    private final StackPane rootStack; // root for toasts overlay
     private final BorderPane root;
 
     // UI components
+    private TabPane tabPane;
     private final ComboBox<Department> departmentCombo = new ComboBox<>();
     private final TableView<ScheduledEvent> eventTable = new TableView<>();
     private final TableView<ConflictResult> conflictTable = new TableView<>();
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label statusLabel = new Label("Ready");
     private final Label conflictSummaryLabel = new Label();
+
+    // Sub-views
+    private HomePage homePage;
+    private CalendarView calendarView;
+    private AnalyticsView analyticsView;
 
     public DashboardController(DatabaseManager dbManager, Stage stage) throws SQLException {
         this.dbManager = dbManager;
@@ -57,10 +66,17 @@ public class DashboardController {
 
         cache.refresh();
         root = buildLayout();
+
+        // Wrap in StackPane for toast overlay
+        rootStack = new StackPane(root);
+        rootStack.getStyleClass().add("root-stack");
+        ToastNotification.initialize(rootStack);
+
         refreshData();
     }
 
-    public BorderPane getRoot() { return root; }
+    /** Returns the root node (StackPane wrapping BorderPane + toast layer). */
+    public StackPane getRoot() { return rootStack; }
 
     // ========== LAYOUT ==========
 
@@ -73,16 +89,44 @@ public class DashboardController {
         leftPanel.getStyleClass().add("left-panel");
         pane.setLeft(leftPanel);
 
-        // --- Center: tabs for schedule and conflicts ---
-        TabPane tabPane = new TabPane();
+        // --- Center: tabs ---
+        tabPane = new TabPane();
         tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        tabPane.getStyleClass().add("main-tab-pane");
 
-        Tab scheduleTab = new Tab("Schedule", buildScheduleView());
+        // Home tab
+        homePage = new HomePage(dbManager, cache, tabPane);
+        Tab homeTab = new Tab("  \u2302 Home  ", homePage.getContent());
+        homeTab.setId("homeTab");
+
+        // Schedule tab
+        Tab scheduleTab = new Tab("  \uD83D\uDCC5 Schedule  ", buildScheduleView());
         scheduleTab.setId("scheduleTab");
-        Tab conflictTab = new Tab("Conflicts", buildConflictView());
+
+        // Conflicts tab
+        Tab conflictTab = new Tab("  \u26A0 Conflicts  ", buildConflictView());
         conflictTab.setId("conflictTab");
 
-        tabPane.getTabs().addAll(scheduleTab, conflictTab);
+        // Calendar tab
+        calendarView = new CalendarView(dbManager, cache);
+        Tab calendarTab = new Tab("  \uD83D\uDCC6 Calendar  ", calendarView.getView());
+        calendarTab.setId("calendarTab");
+
+        // Analytics tab
+        analyticsView = new AnalyticsView(dbManager, cache);
+        Tab analyticsTab = new Tab("  \uD83D\uDCCA Analytics  ", analyticsView.getView());
+        analyticsTab.setId("analyticsTab");
+
+        tabPane.getTabs().addAll(homeTab, scheduleTab, conflictTab, calendarTab, analyticsTab);
+
+        // Refresh views when tab is selected
+        tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            if (newTab == homeTab) homePage.refresh();
+            else if (newTab == calendarTab) calendarView.refresh();
+            else if (newTab == analyticsTab) analyticsView.refresh();
+            else if (newTab == scheduleTab) refreshData();
+        });
+
         pane.setCenter(tabPane);
 
         // --- Bottom status bar ---
@@ -98,91 +142,102 @@ public class DashboardController {
     }
 
     private VBox buildLeftPanel() {
-        VBox panel = new VBox(12);
+        VBox panel = new VBox(10);
         panel.setPadding(new Insets(15));
-        panel.setPrefWidth(250);
+        panel.setPrefWidth(240);
 
         Label title = new Label("FacultySync");
         title.getStyleClass().add("app-title");
+        Label subtitle = new Label("Schedule Manager");
+        subtitle.getStyleClass().add("app-subtitle");
 
         // Department filter
-        Label deptLabel = new Label("Department:");
+        Label deptLabel = new Label("\uD83C\uDFDB Department Filter");
+        deptLabel.getStyleClass().add("sidebar-section-label");
         departmentCombo.setId("departmentCombo");
         departmentCombo.setMaxWidth(Double.MAX_VALUE);
         departmentCombo.setPromptText("All Departments");
         departmentCombo.getItems().addAll(cache.getAllDepartments().values());
         departmentCombo.setOnAction(e -> refreshData());
 
-        // Buttons
-        Button importBtn = new Button("Import CSV");
+        // Action buttons with icons
+        Button importBtn = createSidebarButton("\uD83D\uDCE5 Import CSV", "primary-btn");
         importBtn.setId("importBtn");
-        importBtn.setMaxWidth(Double.MAX_VALUE);
-        importBtn.getStyleClass().add("primary-btn");
         importBtn.setOnAction(e -> handleImport());
 
-        Button exportScheduleBtn = new Button("Export Schedule");
+        Button exportScheduleBtn = createSidebarButton("\uD83D\uDCE4 Export Schedule", null);
         exportScheduleBtn.setId("exportScheduleBtn");
-        exportScheduleBtn.setMaxWidth(Double.MAX_VALUE);
         exportScheduleBtn.setOnAction(e -> handleExportSchedule());
 
-        Button exportConflictBtn = new Button("Export Conflict Report");
+        Button exportConflictBtn = createSidebarButton("\uD83D\uDCCB Export Conflicts", null);
         exportConflictBtn.setId("exportConflictBtn");
-        exportConflictBtn.setMaxWidth(Double.MAX_VALUE);
         exportConflictBtn.setOnAction(e -> handleExportConflictReport());
 
-        Button analyzeBtn = new Button("Analyze Conflicts");
+        Button analyzeBtn = createSidebarButton("\u26A0 Analyze Conflicts", "warning-btn");
         analyzeBtn.setId("analyzeBtn");
-        analyzeBtn.setMaxWidth(Double.MAX_VALUE);
-        analyzeBtn.getStyleClass().add("warning-btn");
         analyzeBtn.setOnAction(e -> handleAnalyze());
 
-        Separator sep1 = new Separator();
+        Button autoResolveBtn = createSidebarButton("\u2728 Auto-Resolve", "resolve-btn");
+        autoResolveBtn.setId("autoResolveBtn");
+        autoResolveBtn.setOnAction(e -> handleAutoResolve());
 
-        Button addDeptBtn = new Button("Add Department");
+        Separator sep1 = new Separator();
+        sep1.getStyleClass().add("sidebar-separator");
+
+        Label manageLabel = new Label("\u2699 Manage Data");
+        manageLabel.getStyleClass().add("sidebar-section-label");
+
+        Button addDeptBtn = createSidebarButton("\u2795 Department", null);
         addDeptBtn.setId("addDeptBtn");
-        addDeptBtn.setMaxWidth(Double.MAX_VALUE);
         addDeptBtn.setOnAction(e -> handleAddDepartment());
 
-        Button addProfBtn = new Button("Add Professor");
+        Button addProfBtn = createSidebarButton("\u2795 Professor", null);
         addProfBtn.setId("addProfBtn");
-        addProfBtn.setMaxWidth(Double.MAX_VALUE);
         addProfBtn.setOnAction(e -> handleAddProfessor());
 
-        Button addCourseBtn = new Button("Add Course");
+        Button addCourseBtn = createSidebarButton("\u2795 Course", null);
         addCourseBtn.setId("addCourseBtn");
-        addCourseBtn.setMaxWidth(Double.MAX_VALUE);
         addCourseBtn.setOnAction(e -> handleAddCourse());
 
-        Button addLocationBtn = new Button("Add Location");
+        Button addLocationBtn = createSidebarButton("\u2795 Location", null);
         addLocationBtn.setId("addLocationBtn");
-        addLocationBtn.setMaxWidth(Double.MAX_VALUE);
         addLocationBtn.setOnAction(e -> handleAddLocation());
 
-        Button addEventBtn = new Button("Add Event");
+        Button addEventBtn = createSidebarButton("\u2795 Event", null);
         addEventBtn.setId("addEventBtn");
-        addEventBtn.setMaxWidth(Double.MAX_VALUE);
         addEventBtn.setOnAction(e -> handleAddEvent());
 
         Separator sep2 = new Separator();
+        sep2.getStyleClass().add("sidebar-separator");
 
-        Button refreshBtn = new Button("Refresh");
+        Button refreshBtn = createSidebarButton("\u21BB Refresh All", null);
         refreshBtn.setId("refreshBtn");
-        refreshBtn.setMaxWidth(Double.MAX_VALUE);
         refreshBtn.setOnAction(e -> {
             try { cache.refresh(); } catch (SQLException ignored) {}
             refreshData();
+            ToastNotification.show("Data refreshed", ToastNotification.ToastType.INFO);
         });
 
         panel.getChildren().addAll(
-                title, new Separator(),
+                title, subtitle, new Separator(),
                 deptLabel, departmentCombo,
-                importBtn, exportScheduleBtn, exportConflictBtn, analyzeBtn,
-                sep1,
+                importBtn, exportScheduleBtn, exportConflictBtn,
+                analyzeBtn, autoResolveBtn,
+                sep1, manageLabel,
                 addDeptBtn, addProfBtn, addCourseBtn, addLocationBtn, addEventBtn,
-                sep2,
-                refreshBtn
+                sep2, refreshBtn
         );
         return panel;
+    }
+
+    private Button createSidebarButton(String text, String extraStyleClass) {
+        Button btn = new Button(text);
+        btn.setMaxWidth(Double.MAX_VALUE);
+        btn.getStyleClass().add("sidebar-btn");
+        if (extraStyleClass != null) {
+            btn.getStyleClass().add(extraStyleClass);
+        }
+        return btn;
     }
 
     @SuppressWarnings("unchecked")
@@ -190,51 +245,50 @@ public class DashboardController {
         VBox box = new VBox(8);
         box.setPadding(new Insets(10));
 
-        // Columns
+        // Columns with CONSTRAINED_RESIZE for auto-fill
         TableColumn<ScheduledEvent, String> courseCol = new TableColumn<>("Course");
         courseCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getCourseCode() != null
                         ? cd.getValue().getCourseCode() : ""));
-        courseCol.setPrefWidth(100);
 
         TableColumn<ScheduledEvent, String> typeCol = new TableColumn<>("Type");
         typeCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getEventType() != null
                         ? cd.getValue().getEventType().getDisplay() : ""));
-        typeCol.setPrefWidth(100);
 
         TableColumn<ScheduledEvent, String> locCol = new TableColumn<>("Location");
         locCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getLocationName() != null
                         ? cd.getValue().getLocationName() : "Online"));
-        locCol.setPrefWidth(140);
 
         TableColumn<ScheduledEvent, String> profCol = new TableColumn<>("Professor");
         profCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getProfessorName() != null
                         ? cd.getValue().getProfessorName() : ""));
-        profCol.setPrefWidth(140);
 
         TableColumn<ScheduledEvent, String> startCol = new TableColumn<>("Start");
         startCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getStartEpoch() != null
                         ? DATE_FMT.format(new Date(cd.getValue().getStartEpoch())) : ""));
-        startCol.setPrefWidth(140);
 
         TableColumn<ScheduledEvent, String> endCol = new TableColumn<>("End");
         endCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getEndEpoch() != null
                         ? DATE_FMT.format(new Date(cd.getValue().getEndEpoch())) : ""));
-        endCol.setPrefWidth(140);
 
         TableColumn<ScheduledEvent, String> durCol = new TableColumn<>("Duration");
         durCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getDurationMinutes() + " min"));
-        durCol.setPrefWidth(80);
 
         eventTable.getColumns().addAll(courseCol, typeCol, locCol, profCol, startCol, endCol, durCol);
         eventTable.setId("eventTable");
-        eventTable.setPlaceholder(new Label("No events scheduled. Import a CSV or add events manually."));
+        eventTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        // Empty state with illustration
+        Label emptyLabel = new Label("\uD83D\uDCED  No events scheduled.\nImport a CSV or add events manually to get started!");
+        emptyLabel.getStyleClass().add("empty-state-label");
+        emptyLabel.setWrapText(true);
+        eventTable.setPlaceholder(emptyLabel);
         VBox.setVgrow(eventTable, Priority.ALWAYS);
 
         box.getChildren().add(eventTable);
@@ -259,6 +313,8 @@ public class DashboardController {
                 setText(empty ? null : item);
                 if (!empty) {
                     Rectangle indicator = new Rectangle(12, 12);
+                    indicator.setArcWidth(3);
+                    indicator.setArcHeight(3);
                     if ("HARD_OVERLAP".equals(item)) {
                         indicator.setFill(Color.web("#e74c3c"));
                     } else {
@@ -273,7 +329,6 @@ public class DashboardController {
 
         TableColumn<ConflictResult, String> descCol = new TableColumn<>("Description");
         descCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getDescription()));
-        descCol.setPrefWidth(500);
 
         TableColumn<ConflictResult, String> altCol = new TableColumn<>("Alternatives");
         altCol.setCellValueFactory(cd -> {
@@ -283,11 +338,16 @@ public class DashboardController {
             for (Location l : alts) sb.append(l.getDisplayName()).append("; ");
             return new SimpleStringProperty(sb.toString());
         });
-        altCol.setPrefWidth(200);
 
         conflictTable.getColumns().addAll(sevCol, descCol, altCol);
         conflictTable.setId("conflictTable");
-        conflictTable.setPlaceholder(new Label("Click 'Analyze Conflicts' to scan for scheduling issues."));
+        conflictTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        // Empty state
+        Label emptyLabel = new Label("\u2705  No conflicts detected.\nClick 'Analyze Conflicts' to scan for scheduling issues.");
+        emptyLabel.getStyleClass().add("empty-state-label");
+        emptyLabel.setWrapText(true);
+        conflictTable.setPlaceholder(emptyLabel);
 
         // Double-click to reassign
         conflictTable.setRowFactory(tv -> {
@@ -355,13 +415,18 @@ public class DashboardController {
             progressBar.setVisible(false);
             try { cache.refresh(); } catch (SQLException ignored) {}
             refreshData();
-            statusLabel.setText("Imported " + task.getValue().size() + " events.");
+            int count = task.getValue().size();
+            statusLabel.setText("Imported " + count + " events.");
+            ToastNotification.show("Successfully imported " + count + " events from CSV",
+                    ToastNotification.ToastType.SUCCESS);
         });
         task.setOnFailed(e -> {
             progressBar.progressProperty().unbind();
             statusLabel.textProperty().unbind();
             progressBar.setVisible(false);
             statusLabel.setText("Import failed: " + task.getException().getMessage());
+            ToastNotification.show("Import failed: " + task.getException().getMessage(),
+                    ToastNotification.ToastType.ERROR);
         });
         new Thread(task, "CSVImport").start();
     }
@@ -383,8 +448,15 @@ public class DashboardController {
                 return null;
             }
         };
-        task.setOnSucceeded(e -> statusLabel.setText("Schedule exported to " + file.getName()));
-        task.setOnFailed(e -> statusLabel.setText("Export failed: " + task.getException().getMessage()));
+        task.setOnSucceeded(e -> {
+            statusLabel.setText("Schedule exported to " + file.getName());
+            ToastNotification.show("Schedule exported to " + file.getName(),
+                    ToastNotification.ToastType.SUCCESS);
+        });
+        task.setOnFailed(e -> {
+            statusLabel.setText("Export failed: " + task.getException().getMessage());
+            ToastNotification.show("Export failed", ToastNotification.ToastType.ERROR);
+        });
         new Thread(task, "ExportSchedule").start();
     }
 
@@ -404,14 +476,20 @@ public class DashboardController {
                 return null;
             }
         };
-        task.setOnSucceeded(e -> statusLabel.setText("Conflict report exported to " + file.getName()));
-        task.setOnFailed(e -> statusLabel.setText("Export failed: " + task.getException().getMessage()));
+        task.setOnSucceeded(e -> {
+            statusLabel.setText("Conflict report exported to " + file.getName());
+            ToastNotification.show("Conflict report exported", ToastNotification.ToastType.SUCCESS);
+        });
+        task.setOnFailed(e -> {
+            statusLabel.setText("Export failed: " + task.getException().getMessage());
+            ToastNotification.show("Export failed", ToastNotification.ToastType.ERROR);
+        });
         new Thread(task, "ExportConflict").start();
     }
 
     private void handleAnalyze() {
         progressBar.setVisible(true);
-        progressBar.setProgress(-1); // indeterminate
+        progressBar.setProgress(-1);
         statusLabel.setText("Analyzing conflicts...");
 
         Task<List<ConflictResult>> task = new Task<>() {
@@ -434,18 +512,88 @@ public class DashboardController {
                     conflicts.size(), hard, tight));
 
             statusLabel.setText("Analysis complete. " + conflicts.size() + " conflicts found.");
+
+            if (conflicts.isEmpty()) {
+                ToastNotification.show("No scheduling conflicts detected!", ToastNotification.ToastType.SUCCESS);
+            } else {
+                ToastNotification.show(conflicts.size() + " conflicts detected! Double-click to reassign.",
+                        hard > 0 ? ToastNotification.ToastType.WARNING : ToastNotification.ToastType.INFO);
+            }
+
+            // Switch to conflicts tab
+            tabPane.getSelectionModel().select(2);
         });
         task.setOnFailed(e -> {
             progressBar.setVisible(false);
             statusLabel.setText("Analysis failed: " + task.getException().getMessage());
+            ToastNotification.show("Analysis failed: " + task.getException().getMessage(),
+                    ToastNotification.ToastType.ERROR);
         });
         new Thread(task, "ConflictAnalysis").start();
     }
 
+    private void handleAutoResolve() {
+        progressBar.setVisible(true);
+        progressBar.setProgress(-1);
+        statusLabel.setText("Auto-resolving conflicts...");
+
+        Task<AutoResolver.ResolveResult> task = new Task<>() {
+            @Override
+            protected AutoResolver.ResolveResult call() throws Exception {
+                AutoResolver resolver = new AutoResolver(dbManager, cache);
+                return resolver.resolveAll();
+            }
+        };
+        task.setOnSucceeded(e -> {
+            progressBar.setVisible(false);
+            progressBar.setProgress(0);
+            AutoResolver.ResolveResult result = task.getValue();
+
+            statusLabel.setText(String.format("Auto-resolve: %d/%d conflicts resolved.",
+                    result.getResolved(), result.getTotalConflicts()));
+
+            if (result.getTotalConflicts() == 0) {
+                ToastNotification.show("No hard-overlap conflicts to resolve!",
+                        ToastNotification.ToastType.INFO);
+            } else if (result.getResolved() > 0) {
+                ToastNotification.show(String.format("Resolved %d of %d conflicts!",
+                        result.getResolved(), result.getTotalConflicts()),
+                        ToastNotification.ToastType.SUCCESS);
+
+                // Show details
+                StringBuilder details = new StringBuilder("Auto-Resolve Results:\n\n");
+                for (String action : result.getActions()) {
+                    details.append("  ").append(action).append("\n");
+                }
+                Alert info = new Alert(Alert.AlertType.INFORMATION);
+                info.setTitle("Auto-Resolve Results");
+                info.setHeaderText(result.getResolved() + " of " + result.getTotalConflicts() + " conflicts resolved");
+                TextArea ta = new TextArea(details.toString());
+                ta.setEditable(false);
+                ta.setWrapText(true);
+                ta.setPrefSize(500, 300);
+                info.getDialogPane().setContent(ta);
+                info.showAndWait();
+            } else {
+                ToastNotification.show("Could not auto-resolve any conflicts – manual intervention needed.",
+                        ToastNotification.ToastType.WARNING);
+            }
+
+            refreshData();
+            handleAnalyze();
+        });
+        task.setOnFailed(e -> {
+            progressBar.setVisible(false);
+            statusLabel.setText("Auto-resolve failed: " + task.getException().getMessage());
+            ToastNotification.show("Auto-resolve failed", ToastNotification.ToastType.ERROR);
+        });
+        new Thread(task, "AutoResolve").start();
+    }
+
     private void handleReassign(ConflictResult conflict) {
         if (conflict.getAvailableAlternatives() == null || conflict.getAvailableAlternatives().isEmpty()) {
-            showAlert(Alert.AlertType.WARNING, "No Alternatives",
-                    "No alternative rooms are available for this time slot.");
+            ToastNotification.show("No alternative rooms available for this time slot.",
+                    ToastNotification.ToastType.WARNING);
             return;
         }
 
@@ -457,7 +605,6 @@ public class DashboardController {
         dialog.setContentText("Select alternative room:");
 
         dialog.showAndWait().ifPresent(newLoc -> {
-            // Reassign event B to the new location
             ScheduledEvent eventB = conflict.getEventB();
             eventB.setLocId(newLoc.getLocId());
             try {
@@ -465,9 +612,11 @@ public class DashboardController {
                 cache.refresh();
                 refreshData();
                 handleAnalyze();
-                statusLabel.setText("Reassigned to " + newLoc.getDisplayName());
+                ToastNotification.show("Reassigned to " + newLoc.getDisplayName(),
+                        ToastNotification.ToastType.SUCCESS);
             } catch (SQLException ex) {
-                showAlert(Alert.AlertType.ERROR, "Error", "Failed to reassign: " + ex.getMessage());
+                ToastNotification.show("Failed to reassign: " + ex.getMessage(),
+                        ToastNotification.ToastType.ERROR);
             }
         });
     }
@@ -485,16 +634,17 @@ public class DashboardController {
                 new DepartmentDAO(dbManager).insert(new Department(null, name.trim()));
                 cache.refresh();
                 departmentCombo.getItems().setAll(cache.getAllDepartments().values());
-                statusLabel.setText("Department '" + name.trim() + "' added.");
+                ToastNotification.show("Department '" + name.trim() + "' added",
+                        ToastNotification.ToastType.SUCCESS);
             } catch (SQLException ex) {
-                showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage());
+                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
             }
         });
     }
 
     private void handleAddProfessor() {
         if (cache.getAllDepartments().isEmpty()) {
-            showAlert(Alert.AlertType.WARNING, "No Departments", "Add a department first.");
+            ToastNotification.show("Add a department first", ToastNotification.ToastType.WARNING);
             return;
         }
         Dialog<Professor> dialog = new Dialog<>();
@@ -528,14 +678,17 @@ public class DashboardController {
             try {
                 new ProfessorDAO(dbManager).insert(prof);
                 cache.refresh();
-                statusLabel.setText("Professor '" + prof.getName() + "' added.");
-            } catch (SQLException ex) { showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
+                ToastNotification.show("Professor '" + prof.getName() + "' added",
+                        ToastNotification.ToastType.SUCCESS);
+            } catch (SQLException ex) {
+                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
+            }
         });
     }
 
     private void handleAddCourse() {
         if (cache.getAllProfessors().isEmpty()) {
-            showAlert(Alert.AlertType.WARNING, "No Professors", "Add a professor first.");
+            ToastNotification.show("Add a professor first", ToastNotification.ToastType.WARNING);
             return;
         }
         Dialog<Course> dialog = new Dialog<>();
@@ -571,8 +724,11 @@ public class DashboardController {
             try {
                 new CourseDAO(dbManager).insert(course);
                 cache.refresh();
-                statusLabel.setText("Course '" + course.getCourseCode() + "' added.");
-            } catch (SQLException ex) { showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
+                ToastNotification.show("Course '" + course.getCourseCode() + "' added",
+                        ToastNotification.ToastType.SUCCESS);
+            } catch (SQLException ex) {
+                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
+            }
         });
     }
 
@@ -611,14 +767,17 @@ public class DashboardController {
             try {
                 new LocationDAO(dbManager).insert(loc);
                 cache.refresh();
-                statusLabel.setText("Location '" + loc.getDisplayName() + "' added.");
-            } catch (SQLException ex) { showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
+                ToastNotification.show("Location '" + loc.getDisplayName() + "' added",
+                        ToastNotification.ToastType.SUCCESS);
+            } catch (SQLException ex) {
+                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
+            }
         });
     }
 
     private void handleAddEvent() {
         if (cache.getAllCourses().isEmpty()) {
-            showAlert(Alert.AlertType.WARNING, "No Courses", "Add a course first.");
+            ToastNotification.show("Add a course first", ToastNotification.ToastType.WARNING);
             return;
         }
         Dialog<ScheduledEvent> dialog = new Dialog<>();
@@ -668,15 +827,11 @@ public class DashboardController {
                 new ScheduledEventDAO(dbManager).insert(event);
                 cache.refresh();
                 refreshData();
-                statusLabel.setText("Event added.");
-            } catch (SQLException ex) { showAlert(Alert.AlertType.ERROR, "Error", ex.getMessage()); }
+                ToastNotification.show("Event added successfully",
+                        ToastNotification.ToastType.SUCCESS);
+            } catch (SQLException ex) {
+                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
+            }
         });
-    }
-
-    private void showAlert(Alert.AlertType type, String title, String msg) {
-        Alert alert = new Alert(type);
-        alert.setTitle(title);
-        alert.setContentText(msg);
-        alert.showAndWait();
     }
 }
