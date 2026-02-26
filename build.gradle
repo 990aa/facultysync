@@ -3,6 +3,8 @@ plugins {
     id 'org.openjfx.javafxplugin' version '0.1.0'
 }
 
+version = '0.1.0'
+
 repositories {
     mavenCentral()
 }
@@ -60,4 +62,21 @@ sourceSets {
             srcDirs = ['src/test/resources']
         }
     }
+}
+
+// Seed database and run conflict analysis + auto-resolve
+tasks.register('seedAndResolve', JavaExec) {
+    group = 'application'
+    description = 'Seed the database with demo data and auto-resolve conflicts'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'edu.facultysync.SeedAndResolve'
+}
+
+// Build standalone distribution zip
+tasks.register('distZip2', Zip) {
+    group = 'distribution'
+    description = 'Create a standalone distribution zip for Windows'
+    archiveFileName = "FacultySync-${project.version}-windows.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from(tasks.named('installDist').map { it.destinationDir })
 }

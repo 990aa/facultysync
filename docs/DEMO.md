@@ -8,13 +8,13 @@
 
 ```bash
 # Build the project
-./gradlew build
+gradle build
 
 # Run the application
-./gradlew run
+gradle run
 
 # Run all tests
-./gradlew test
+gradle test
 ```
 
 The application launches with **30+ pre-seeded events**, **5 departments**, **9 professors**, **10 courses**, and **10 locations** — including **4 intentional scheduling conflicts** to demonstrate the conflict engine.
@@ -226,7 +226,7 @@ src/main/java/edu/facultysync/
 ## Testing
 
 ```bash
-./gradlew test
+gradle test
 ```
 
 Test suites:
