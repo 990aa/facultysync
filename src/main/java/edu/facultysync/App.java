@@ -2,11 +2,11 @@ package edu.facultysync;
 
 import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.SeedData;
+import edu.facultysync.service.NotificationService;
 import edu.facultysync.ui.CustomTitleBar;
 import edu.facultysync.ui.DashboardController;
 import javafx.application.Application;
 import javafx.scene.Scene;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -18,6 +18,9 @@ import java.net.URL;
  */
 public class App extends Application {
 
+    /** Application version – updated by release script. */
+    public static final String VERSION = "0.1.0";
+
     private DatabaseManager dbManager;
 
     @Override
@@ -25,6 +28,9 @@ public class App extends Application {
         // Initialize database
         dbManager = new DatabaseManager();
         dbManager.initializeSchema();
+
+        // Initialize native Windows notifications
+        NotificationService.initialize();
 
         // Seed demo data if database is empty
         SeedData.seedIfEmpty(dbManager);
@@ -36,10 +42,10 @@ public class App extends Application {
         DashboardController dashboard = new DashboardController(dbManager, primaryStage);
 
         // Wrap with custom title bar
-        CustomTitleBar titleBar = new CustomTitleBar(primaryStage, "FacultySync");
+        CustomTitleBar titleBar = new CustomTitleBar(primaryStage, "FacultySync  v" + VERSION);
         VBox appContainer = new VBox();
         appContainer.getChildren().addAll(titleBar, dashboard.getRoot());
-        javafx.scene.layout.VBox.setVgrow(dashboard.getRoot(), javafx.scene.layout.Priority.ALWAYS);
+        VBox.setVgrow(dashboard.getRoot(), javafx.scene.layout.Priority.ALWAYS);
 
         Scene scene = new Scene(appContainer, 1280, 800);
 
@@ -54,11 +60,19 @@ public class App extends Application {
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(900);
         primaryStage.setMinHeight(600);
+
+        // Install resize handlers (requires scene to be set)
+        titleBar.installResizeHandlers(primaryStage);
+
         primaryStage.show();
+
+        // Check for updates asynchronously after window is shown
+        javafx.application.Platform.runLater(() -> UpdateChecker.checkForUpdates(primaryStage));
     }
 
     @Override
     public void stop() {
+        NotificationService.shutdown();
         if (dbManager != null) dbManager.close();
     }
 

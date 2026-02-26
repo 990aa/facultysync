@@ -8,6 +8,7 @@ import edu.facultysync.model.ConflictResult.Severity;
 import edu.facultysync.service.AutoResolver;
 import edu.facultysync.service.ConflictEngine;
 import edu.facultysync.service.DataCache;
+import edu.facultysync.service.NotificationService;
 
 import javafx.application.Platform;
 import javafx.beans.property.SimpleStringProperty;
@@ -419,6 +420,7 @@ public class DashboardController {
             statusLabel.setText("Imported " + count + " events.");
             ToastNotification.show("Successfully imported " + count + " events from CSV",
                     ToastNotification.ToastType.SUCCESS);
+            NotificationService.info("CSV Import Complete", count + " events imported successfully.");
         });
         task.setOnFailed(e -> {
             progressBar.progressProperty().unbind();
@@ -515,9 +517,12 @@ public class DashboardController {
 
             if (conflicts.isEmpty()) {
                 ToastNotification.show("No scheduling conflicts detected!", ToastNotification.ToastType.SUCCESS);
+                NotificationService.info("Conflict Analysis", "No scheduling conflicts detected.");
             } else {
                 ToastNotification.show(conflicts.size() + " conflicts detected! Double-click to reassign.",
                         hard > 0 ? ToastNotification.ToastType.WARNING : ToastNotification.ToastType.INFO);
+                NotificationService.warning("Conflicts Detected",
+                        conflicts.size() + " conflicts found (" + hard + " hard overlaps).");
             }
 
             // Switch to conflicts tab
@@ -559,6 +564,8 @@ public class DashboardController {
                 ToastNotification.show(String.format("Resolved %d of %d conflicts!",
                         result.getResolved(), result.getTotalConflicts()),
                         ToastNotification.ToastType.SUCCESS);
+                NotificationService.info("Auto-Resolve Complete",
+                        result.getResolved() + " of " + result.getTotalConflicts() + " conflicts resolved.");
 
                 // Show details
                 StringBuilder details = new StringBuilder("Auto-Resolve Results:\n\n");
