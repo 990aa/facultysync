@@ -21,3 +21,7 @@ Thumbs.db
 # --- JavaFX Specific ---
 # If you ever use a local SDK path in a properties file
 local.properties
+
+# Custom
+*.xml
+*.db
