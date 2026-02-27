@@ -6,11 +6,15 @@ import javafx.scene.Cursor;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.stage.Stage;
+
+import java.io.InputStream;
 
 /**
  * Custom undecorated title bar with minimize, maximize/restore, and close buttons.
@@ -26,6 +30,7 @@ public class CustomTitleBar extends HBox {
     private final Button minimizeBtn;
     private final Button maximizeBtn;
     private final Button closeBtn;
+    private final Node iconNode;
 
     public CustomTitleBar(Stage stage, String title) {
         setId("customTitleBar");
@@ -38,10 +43,19 @@ public class CustomTitleBar extends HBox {
         setVisible(true);
         setManaged(true);
 
-        // App icon
-        Label icon = new Label("\uD83C\uDF93");
-        icon.setId("titleBarIcon");
-        icon.getStyleClass().add("title-bar-icon");
+        // App icon – use app-icon.png if available, otherwise fall back to Unicode emoji
+        InputStream iconStream = getClass().getResourceAsStream("/app-icon.png");
+        if (iconStream != null) {
+            ImageView iconImage = new ImageView(new Image(iconStream, 22, 22, true, true));
+            iconImage.setId("titleBarIcon");
+            iconImage.getStyleClass().add("title-bar-icon");
+            iconNode = iconImage;
+        } else {
+            Label iconLabel = new Label("\uD83C\uDF93");
+            iconLabel.setId("titleBarIcon");
+            iconLabel.getStyleClass().add("title-bar-icon");
+            iconNode = iconLabel;
+        }
 
         // Title text
         Label titleLabel = new Label(title);
@@ -67,7 +81,7 @@ public class CustomTitleBar extends HBox {
             javafx.application.Platform.exit();
         });
 
-        getChildren().addAll(icon, titleLabel, spacer, minimizeBtn, maximizeBtn, closeBtn);
+        getChildren().addAll(iconNode, titleLabel, spacer, minimizeBtn, maximizeBtn, closeBtn);
 
         // ---- Drag to move ----
         setOnMousePressed(event -> {
@@ -205,4 +219,5 @@ public class CustomTitleBar extends HBox {
     public Button getMinimizeButton() { return minimizeBtn; }
     public Button getMaximizeButton() { return maximizeBtn; }
     public Button getCloseButton() { return closeBtn; }
+    public Node getIconNode() { return iconNode; }
 }

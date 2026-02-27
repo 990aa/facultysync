@@ -1,12 +1,15 @@
 package edu.facultysync.ui;
 
 import javafx.application.Platform;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import org.junit.jupiter.api.*;
@@ -214,5 +217,133 @@ class CustomTitleBarTest {
     void installResizeHandlers_doesNotThrow() throws Exception {
         // Already called in @BeforeAll – if we got here, it didn't throw
         assertNotNull(titleBar);
+    }
+
+    // ————— Icon tests —————
+
+    @Test @Order(50)
+    void titleBar_hasIconNode() throws Exception {
+        onFx(() -> {
+            Node icon = titleBar.getIconNode();
+            assertNotNull(icon, "Title bar should have an icon node");
+            assertEquals("titleBarIcon", icon.getId(), "Icon node should have correct ID");
+        });
+    }
+
+    @Test @Order(51)
+    void titleBar_iconIsInChildList() throws Exception {
+        onFx(() -> {
+            Node icon = titleBar.getIconNode();
+            assertTrue(titleBar.getChildren().contains(icon), "Icon should be in child list");
+            assertEquals(0, titleBar.getChildren().indexOf(icon), "Icon should be first child");
+        });
+    }
+
+    @Test @Order(52)
+    void titleBar_iconLookupById() throws Exception {
+        onFx(() -> {
+            Node found = titleBar.lookup("#titleBarIcon");
+            assertNotNull(found, "Should find icon by #titleBarIcon lookup");
+        });
+    }
+
+    // ————— Window does NOT cover taskbar (visual bounds) —————
+
+    @Test @Order(60)
+    void maximize_usesVisualBounds() throws Exception {
+        onFx(() -> {
+            // Start un-maximized
+            if (titleBar.isMaximized()) titleBar.getMaximizeButton().fire();
+            assertFalse(titleBar.isMaximized());
+
+            // Maximize
+            titleBar.getMaximizeButton().fire();
+            assertTrue(titleBar.isMaximized());
+
+            Rectangle2D visual = Screen.getPrimary().getVisualBounds();
+            // Stage should not exceed visual bounds (which exclude the OS taskbar)
+            assertTrue(stage.getX() >= visual.getMinX(),
+                    "Stage X should be >= visual bounds minX");
+            assertTrue(stage.getY() >= visual.getMinY(),
+                    "Stage Y should be >= visual bounds minY");
+            assertTrue(stage.getWidth() <= visual.getWidth() + 1,
+                    "Stage width should not exceed visual bounds width");
+            assertTrue(stage.getHeight() <= visual.getHeight() + 1,
+                    "Stage height should not exceed visual bounds height");
+
+            // Restore
+            titleBar.getMaximizeButton().fire();
+            assertFalse(titleBar.isMaximized());
+        });
+    }
+
+    @Test @Order(61)
+    void initialState_stageIsNotFullscreen() throws Exception {
+        onFx(() -> {
+            Rectangle2D visual = Screen.getPrimary().getVisualBounds();
+            // The test stage is 800x600 – should NOT fill the screen
+            assertTrue(stage.getWidth() < visual.getWidth(),
+                    "Stage should not fill screen width");
+            assertTrue(stage.getHeight() < visual.getHeight(),
+                    "Stage should not fill screen height");
+        });
+    }
+
+    @Test @Order(62)
+    void maximize_restore_returnsToPreviousSize() throws Exception {
+        onFx(() -> {
+            if (titleBar.isMaximized()) titleBar.getMaximizeButton().fire();
+
+            double origW = stage.getWidth();
+            double origH = stage.getHeight();
+
+            titleBar.getMaximizeButton().fire(); // maximize
+            assertTrue(titleBar.isMaximized());
+
+            titleBar.getMaximizeButton().fire(); // restore
+            assertFalse(titleBar.isMaximized());
+
+            assertEquals(origW, stage.getWidth(), 2, "Width should restore");
+            assertEquals(origH, stage.getHeight(), 2, "Height should restore");
+        });
+    }
+
+    // ————— Button dimension tests —————
+
+    @Test @Order(70)
+    void controlButtons_have46x40Size() throws Exception {
+        onFx(() -> {
+            for (Button btn : new Button[]{ titleBar.getMinimizeButton(), titleBar.getMaximizeButton(), titleBar.getCloseButton() }) {
+                assertEquals(46, btn.getPrefWidth(), "Button pref width should be 46");
+                assertEquals(40, btn.getPrefHeight(), "Button pref height should be 40");
+                assertEquals(46, btn.getMinWidth(), "Button min width should be 46");
+                assertEquals(40, btn.getMinHeight(), "Button min height should be 40");
+            }
+        });
+    }
+
+    @Test @Order(71)
+    void controlButtons_areNotFocusTraversable() throws Exception {
+        onFx(() -> {
+            assertFalse(titleBar.getMinimizeButton().isFocusTraversable());
+            assertFalse(titleBar.getMaximizeButton().isFocusTraversable());
+            assertFalse(titleBar.getCloseButton().isFocusTraversable());
+        });
+    }
+
+    // ————— Maximize button text changes —————
+
+    @Test @Order(80)
+    void maximizeButton_textChangesOnToggle() throws Exception {
+        onFx(() -> {
+            if (titleBar.isMaximized()) titleBar.getMaximizeButton().fire();
+            assertEquals("\u25A1", titleBar.getMaximizeButton().getText(), "Normal state: white square");
+
+            titleBar.getMaximizeButton().fire();
+            assertEquals("\u25A3", titleBar.getMaximizeButton().getText(), "Maximized state: filled square");
+
+            titleBar.getMaximizeButton().fire();
+            assertEquals("\u25A1", titleBar.getMaximizeButton().getText(), "Restored state: white square again");
+        });
     }
 }

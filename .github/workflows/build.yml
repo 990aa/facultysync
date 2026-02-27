@@ -48,14 +48,37 @@ jobs:
           # Ensure installDist output exists
           ./gradlew installDist --no-daemon
 
+          # Convert app-icon.png to .ico using PowerShell + .NET
+          Add-Type -AssemblyName System.Drawing
+          $pngPath = "app-icon.png"
+          $icoPath = "build/app-icon.ico"
+          if (Test-Path $pngPath) {
+            $bitmap = [System.Drawing.Bitmap]::FromFile((Resolve-Path $pngPath))
+            $resized = New-Object System.Drawing.Bitmap($bitmap, 256, 256)
+            $icon = [System.Drawing.Icon]::FromHandle($resized.GetHicon())
+            $stream = [System.IO.File]::Create($icoPath)
+            $icon.Save($stream)
+            $stream.Close()
+            $icon.Dispose()
+            $resized.Dispose()
+            $bitmap.Dispose()
+            Write-Host "Converted app-icon.png to .ico"
+          }
+
+          # Determine icon argument
+          $iconArg = @()
+          if (Test-Path $icoPath) {
+            $iconArg = @("--icon", $icoPath)
+          }
+
           # jpackage to build MSI (WiX is pre-installed on windows-latest)
-          jpackage `
+          & jpackage `
             --type msi `
             --name FacultySync `
             --app-version $ver `
             --vendor "Abdul Ahad" `
             --description "University scheduling conflict detection and management" `
-            --icon src/main/resources/icon.ico `
+            @iconArg `
             --input "$installDir/lib" `
             --main-jar facultysync-$ver.jar `
             --main-class edu.facultysync.App `
@@ -67,7 +90,7 @@ jobs:
             --java-options "--enable-native-access=ALL-UNNAMED" `
             2>&1 | ForEach-Object { Write-Host $_ }
 
-          # Fallback: if icon doesn't exist, retry without it
+          # Fallback: if icon conversion failed, retry without it
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Retrying jpackage without icon..."
             jpackage `

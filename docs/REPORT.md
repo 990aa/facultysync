@@ -425,23 +425,23 @@ The project includes **9 test suites** with comprehensive coverage:
 
 ```bash
 # Compile and run
-gradle run
+./gradlew run
 
 # Run tests
-gradle test
+./gradlew test
 
 # Seed database and auto-resolve (CLI)
-gradle seedAndResolve
+./gradlew seedAndResolve
 
 # Build standalone distribution zip
-gradle distZip2
+./gradlew distZip2
 ```
 
 ### GitHub Actions CI/CD
 
 On every Git tag push matching `v*`, the workflow:
 1. Sets up Java 25 (Temurin) on `windows-latest`
-2. Builds with Gradle (`clean build distZip2`)
+2. Builds with Gradle (`./gradlew clean build distZip2`)
 3. Runs all tests
 4. Creates an MSI installer via `jpackage` + WiX Toolset
 5. Publishes both the `.zip` and `.msi` as GitHub Release artifacts

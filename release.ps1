@@ -118,9 +118,9 @@ if ($newVersion -ne $currentVersion) {
 # Build
 Write-Host "`n--- Building distribution ---" -ForegroundColor Cyan
 if ($DryRun) {
-    Write-Host "[DRY RUN] Would run: gradle clean distZip2" -ForegroundColor Magenta
+    Write-Host "[DRY RUN] Would run: ./gradlew clean distZip2" -ForegroundColor Magenta
 } else {
-    & gradle clean distZip2 2>&1 | ForEach-Object { Write-Host $_ }
+    & ./gradlew clean distZip2 2>&1 | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) { throw "Build failed" }
 }
 
@@ -138,9 +138,9 @@ if (-not $DryRun) {
 # Run tests
 Write-Host "`n--- Running tests ---" -ForegroundColor Cyan
 if ($DryRun) {
-    Write-Host "[DRY RUN] Would run: gradle test" -ForegroundColor Magenta
+    Write-Host "[DRY RUN] Would run: ./gradlew test" -ForegroundColor Magenta
 } else {
-    & gradle test 2>&1 | ForEach-Object { Write-Host $_ }
+    & ./gradlew test 2>&1 | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) { throw "Tests failed" }
     Write-Host "[OK] All tests passed" -ForegroundColor Green
 }

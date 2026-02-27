@@ -4,7 +4,7 @@ A modern JavaFX desktop application for managing university course schedules, de
 
 ## Download
 
-> **Latest Release:** [v0.1.1](https://github.com/990aa/facultysync/releases/latest)
+> **Latest Release:** [v0.2.0](https://github.com/990aa/facultysync/releases/latest)
 
 Download the standalone Windows distribution from the [Releases](https://github.com/990aa/facultysync/releases) page. No JDK installation required.
 
@@ -58,9 +58,9 @@ Download the standalone Windows distribution from the [Releases](https://github.
 ## Build & Run
 
 ```bash
-gradle build      # Compile + run all tests
-gradle run        # Launch the application
-gradle test       # Run all automated tests
+./gradlew build      # Compile + run all tests
+./gradlew run        # Launch the application
+./gradlew test       # Run all automated tests
 ```
 
 ### Seed the Database
@@ -68,7 +68,7 @@ gradle test       # Run all automated tests
 FacultySync automatically seeds demo data on first launch. To manually seed the database and run conflict analysis + auto-resolve from the command line:
 
 ```bash
-gradle seedAndResolve
+./gradlew seedAndResolve
 ```
 
 This inserts 5 departments, 9 professors, 10 courses, 10 locations, and 30+ scheduled events (including 4 intentional conflicts), then runs the full conflict detection and auto-resolution pipeline with console output.
@@ -78,7 +78,7 @@ This inserts 5 departments, 9 professors, 10 courses, 10 locations, and 30+ sche
 To build a portable `.zip` distribution for Windows:
 
 ```bash
-gradle distZip2
+./gradlew distZip2
 ```
 
 The output is placed at `build/distributions/FacultySync-<version>-windows.zip`. Extract it and run:
@@ -159,7 +159,7 @@ src/main/java/edu/facultysync/
 
 The project includes a PowerShell release script that automates:
 1. Semantic version bumping (major/minor/patch) in `build.gradle`, `App.java`, and `README.md`
-2. Building the standalone distribution zip (via `gradle distZip2`)
+2. Building the standalone distribution zip (via `./gradlew distZip2`)
 3. Running all tests
 4. Committing, tagging, and pushing to GitHub
 5. Creating a GitHub Release with the zip attached

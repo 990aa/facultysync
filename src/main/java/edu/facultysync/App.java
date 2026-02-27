@@ -6,11 +6,15 @@ import edu.facultysync.service.NotificationService;
 import edu.facultysync.ui.CustomTitleBar;
 import edu.facultysync.ui.DashboardController;
 import javafx.application.Application;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
+import javafx.scene.image.Image;
 import javafx.scene.layout.VBox;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 
+import java.io.InputStream;
 import java.net.URL;
 
 /**
@@ -19,7 +23,7 @@ import java.net.URL;
 public class App extends Application {
 
     /** Application version – updated by release script. */
-    public static final String VERSION = "0.1.1";
+    public static final String VERSION = "0.2.0";
 
     private DatabaseManager dbManager;
 
@@ -38,6 +42,12 @@ public class App extends Application {
         // Undecorated stage for custom title bar
         primaryStage.initStyle(StageStyle.UNDECORATED);
 
+        // Set application icon (appears in taskbar and window switcher)
+        InputStream iconStream = getClass().getResourceAsStream("/app-icon.png");
+        if (iconStream != null) {
+            primaryStage.getIcons().add(new Image(iconStream));
+        }
+
         // Build UI
         DashboardController dashboard = new DashboardController(dbManager, primaryStage);
 
@@ -47,7 +57,12 @@ public class App extends Application {
         appContainer.getChildren().addAll(titleBar, dashboard.getRoot());
         VBox.setVgrow(dashboard.getRoot(), javafx.scene.layout.Priority.ALWAYS);
 
-        Scene scene = new Scene(appContainer, 1280, 800);
+        // Use visual bounds (excludes taskbar) to size the window properly
+        Rectangle2D screenBounds = Screen.getPrimary().getVisualBounds();
+        double initWidth = Math.min(1280, screenBounds.getWidth() * 0.82);
+        double initHeight = Math.min(800, screenBounds.getHeight() * 0.85);
+
+        Scene scene = new Scene(appContainer, initWidth, initHeight);
 
         // Defensive CSS loading – null-check the resource URL
         URL cssUrl = getClass().getResource("/style.css");
@@ -60,6 +75,10 @@ public class App extends Application {
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(900);
         primaryStage.setMinHeight(600);
+
+        // Center window on screen (within visual bounds, not covering taskbar)
+        primaryStage.setX(screenBounds.getMinX() + (screenBounds.getWidth() - initWidth) / 2);
+        primaryStage.setY(screenBounds.getMinY() + (screenBounds.getHeight() - initHeight) / 2);
 
         // Install resize handlers (requires scene to be set)
         titleBar.installResizeHandlers(primaryStage);
