@@ -106,7 +106,7 @@ class AutoResolverTest {
         assertEquals(1, result.getResolved());
         assertEquals(0, result.getUnresolvable());
         assertFalse(result.getActions().isEmpty());
-        assertTrue(result.getActions().get(0).startsWith("RESOLVED:"));
+        assertTrue(result.getActions().get(0).startsWith("RESOLVED (HARD_OVERLAP):"));
     }
 
     @Test

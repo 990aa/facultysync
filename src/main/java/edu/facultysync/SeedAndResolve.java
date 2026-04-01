@@ -31,6 +31,7 @@ public class SeedAndResolve {
 
             // 2. Seed demo data
             SeedData.seedIfEmpty(dbManager);
+            SeedData.ensureIntentionalConflicts(dbManager);
             System.out.println("[OK] Demo data seeded.\n");
 
             // 3. Print summary of seeded data
