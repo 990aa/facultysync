@@ -110,6 +110,7 @@ public class SeedAndResolve {
     }
 
     private static void printDataSummary(DatabaseManager dbManager, DataCache cache) throws SQLException {
+        cache.refresh();
         System.out.println("  Departments:  " + cache.getAllDepartments().size());
         System.out.println("  Professors:   " + cache.getAllProfessors().size());
         System.out.println("  Courses:      " + cache.getAllCourses().size());

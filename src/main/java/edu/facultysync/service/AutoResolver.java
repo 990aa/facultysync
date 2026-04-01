@@ -13,8 +13,8 @@ import java.util.*;
  *
  * <p>Strategy:
  * <ol>
- *   <li>Detect all HARD_OVERLAP conflicts</li>
- *   <li>For each conflict, try reassigning event B to an available room</li>
+ *   <li>Detect all actionable conflicts (HARD_OVERLAP and TIGHT_TRANSITION)</li>
+ *   <li>For each conflict, try reassigning event B to a valid alternative room</li>
  *   <li>Verify no new conflicts are introduced</li>
  *   <li>Backtrack if the reassignment causes additional conflicts</li>
  * </ol>
@@ -54,106 +54,110 @@ public class AutoResolver {
     }
 
     /**
-     * Attempt to automatically resolve all HARD_OVERLAP conflicts.
+     * Attempt to automatically resolve actionable conflicts.
      * @return summary of the resolution session
      */
     public ResolveResult resolveAll() throws SQLException {
         cache.refresh();
         List<ConflictResult> conflicts = conflictEngine.analyzeAll();
 
-        // Only handle hard overlaps (room double-bookings)
-        List<ConflictResult> hardOverlaps = new ArrayList<>();
+        // Handle all conflict types that can be resolved via room reassignment.
+        List<ConflictResult> actionable = new ArrayList<>();
         for (ConflictResult c : conflicts) {
-            if (c.getSeverity() == Severity.HARD_OVERLAP) {
-                hardOverlaps.add(c);
+            if (c.getSeverity() == Severity.HARD_OVERLAP
+                    || c.getSeverity() == Severity.TIGHT_TRANSITION) {
+                actionable.add(c);
             }
         }
 
-        int totalConflicts = hardOverlaps.size();
+        int totalConflicts = actionable.size();
         int resolved = 0;
         int unresolvable = 0;
         List<String> actions = new ArrayList<>();
-        Set<Integer> alreadyMoved = new HashSet<>();
 
         ScheduledEventDAO eventDao = new ScheduledEventDAO(dbManager);
         LocationDAO locationDao = new LocationDAO(dbManager);
 
-        for (ConflictResult conflict : hardOverlaps) {
-            ScheduledEvent eventB = conflict.getEventB();
-            if (eventB == null || eventB.getEventId() == null) {
-                unresolvable++;
-                continue;
-            }
+        for (ConflictResult conflict : actionable) {
+            cache.refresh();
 
-            // Skip if already moved
-            if (alreadyMoved.contains(eventB.getEventId())) {
+            ScheduledEvent eventToMove = conflict.getEventB();
+            if (eventToMove == null || eventToMove.getEventId() == null
+                    || eventToMove.getStartEpoch() == null || eventToMove.getEndEpoch() == null) {
+                unresolvable++;
+                actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — invalid event data");
                 continue;
             }
 
             // Get minimum capacity needed
-            Course course = cache.getCourse(eventB.getCourseId());
+            Course course = cache.getCourse(eventToMove.getCourseId());
             int minCap = (course != null && course.getEnrollmentCount() != null)
                     ? course.getEnrollmentCount() : 0;
 
             // Find available rooms during this time slot
             List<Location> available = locationDao.findAvailable(
-                    eventB.getStartEpoch(), eventB.getEndEpoch(), minCap);
+                    eventToMove.getStartEpoch(), eventToMove.getEndEpoch(), minCap);
 
-            // Remove the current conflicting room from alternatives
-            if (eventB.getLocId() != null) {
-                available.removeIf(loc -> loc.getLocId().equals(eventB.getLocId()));
+            if (conflict.getSeverity() == Severity.TIGHT_TRANSITION) {
+                ScheduledEvent first = conflict.getEventA();
+                Location firstLoc = cache.getLocation(first != null ? first.getLocId() : null);
+                if (firstLoc != null) {
+                    available.removeIf(loc -> !Objects.equals(loc.getBuilding(), firstLoc.getBuilding()));
+                }
+            }
+
+            // Remove the current room from alternatives
+            if (eventToMove.getLocId() != null) {
+                available.removeIf(loc -> loc.getLocId().equals(eventToMove.getLocId()));
             }
 
             if (available.isEmpty()) {
                 unresolvable++;
-                actions.add("UNRESOLVABLE: " + formatEvent(eventB, conflict) + " — no alternative rooms available");
+                actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — no alternative rooms available");
                 continue;
             }
 
             // Try each alternative with backtracking
             boolean wasResolved = false;
-            Integer originalLocId = eventB.getLocId();
+            Integer originalLocId = eventToMove.getLocId();
 
             for (Location alt : available) {
                 // Tentatively reassign
-                eventB.setLocId(alt.getLocId());
-                eventDao.update(eventB);
+                eventToMove.setLocId(alt.getLocId());
+                eventDao.update(eventToMove);
 
                 // Check if this creates new conflicts
                 cache.refresh();
                 List<ConflictResult> newConflicts = conflictEngine.analyzeAll();
-                long newHardOverlaps = newConflicts.stream()
-                        .filter(c -> c.getSeverity() == Severity.HARD_OVERLAP)
-                        .count();
 
-                // If we haven't introduced new hard overlaps for this event
+                // Success only when the moved event is no longer involved in any conflict.
                 boolean eventStillConflicts = newConflicts.stream()
-                        .filter(c -> c.getSeverity() == Severity.HARD_OVERLAP)
-                        .anyMatch(c -> involvesEvent(c, eventB.getEventId()));
+                        .anyMatch(c -> involvesEvent(c, eventToMove.getEventId()));
 
                 if (!eventStillConflicts) {
-                    // Success!
                     resolved++;
-                    alreadyMoved.add(eventB.getEventId());
-                    String courseCode = eventB.getCourseCode() != null ? eventB.getCourseCode() : "Event#" + eventB.getEventId();
+                    String courseCode = eventToMove.getCourseCode() != null
+                            ? eventToMove.getCourseCode()
+                            : "Event#" + eventToMove.getEventId();
                     Location oldLoc = cache.getLocation(originalLocId);
                     String oldName = oldLoc != null ? oldLoc.getDisplayName() : "Room#" + originalLocId;
-                    actions.add("RESOLVED: " + courseCode + " moved from " + oldName + " to " + alt.getDisplayName());
+                    actions.add("RESOLVED (" + conflict.getSeverity() + "): "
+                            + courseCode + " moved from " + oldName + " to " + alt.getDisplayName());
                     wasResolved = true;
                     break;
-                } else {
-                    // Backtrack
-                    eventB.setLocId(originalLocId);
-                    eventDao.update(eventB);
                 }
+
+                // Backtrack
+                eventToMove.setLocId(originalLocId);
+                eventDao.update(eventToMove);
             }
 
             if (!wasResolved) {
                 // Restore original
-                eventB.setLocId(originalLocId);
-                eventDao.update(eventB);
+                eventToMove.setLocId(originalLocId);
+                eventDao.update(eventToMove);
                 unresolvable++;
-                actions.add("UNRESOLVABLE: " + formatEvent(eventB, conflict) + " — all alternatives still conflict");
+                actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — all alternatives still conflict");
             }
         }
 
@@ -169,6 +173,9 @@ public class AutoResolver {
     }
 
     private String formatEvent(ScheduledEvent ev, ConflictResult conflict) {
+        if (ev == null) {
+            return "Unknown event";
+        }
         String code = ev.getCourseCode() != null ? ev.getCourseCode() : "Event#" + ev.getEventId();
         return code + " (" + conflict.getDescription() + ")";
     }

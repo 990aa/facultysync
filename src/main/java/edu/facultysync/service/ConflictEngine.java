@@ -37,6 +37,7 @@ public class ConflictEngine {
      * @return list of detected conflicts
      */
     public List<ConflictResult> analyzeAll() throws SQLException {
+        cache.refresh();
         List<ScheduledEvent> allEvents = new ScheduledEventDAO(dbManager).findAll();
         cache.enrichAll(allEvents);
         return analyze(allEvents);
@@ -106,7 +107,17 @@ public class ConflictEngine {
                                 gap / 60_000,
                                 formatEvent(a), locA.getDisplayName(),
                                 formatEvent(b), locB.getDisplayName());
-                        conflicts.add(new ConflictResult(a, b, Severity.TIGHT_TRANSITION, desc));
+
+                        ConflictResult cr = new ConflictResult(a, b, Severity.TIGHT_TRANSITION, desc);
+                        int minCap = getRequiredCapacity(b);
+                        List<Location> alternatives = new LocationDAO(dbManager)
+                                .findAvailable(b.getStart(), b.getEnd(), minCap)
+                                .stream()
+                                .filter(loc -> Objects.equals(loc.getBuilding(), locA.getBuilding()))
+                                .filter(loc -> !Objects.equals(loc.getLocId(), b.getLocId()))
+                                .collect(Collectors.toList());
+                        cr.setAvailableAlternatives(alternatives);
+                        conflicts.add(cr);
                     }
                 }
             }
@@ -127,5 +138,10 @@ public class ConflictEngine {
         int capA = (ca != null && ca.getEnrollmentCount() != null) ? ca.getEnrollmentCount() : 0;
         int capB = (cb != null && cb.getEnrollmentCount() != null) ? cb.getEnrollmentCount() : 0;
         return Math.max(capA, capB);
+    }
+
+    private int getRequiredCapacity(ScheduledEvent event) {
+        Course c = cache.getCourse(event.getCourseId());
+        return (c != null && c.getEnrollmentCount() != null) ? c.getEnrollmentCount() : 0;
     }
 }

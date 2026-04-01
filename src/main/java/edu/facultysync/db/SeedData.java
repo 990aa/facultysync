@@ -6,6 +6,7 @@ import edu.facultysync.model.ScheduledEvent.EventType;
 import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Seeds the database with realistic demonstration data.
@@ -137,6 +138,67 @@ public class SeedData {
         eventDao.insert(makeEvent(phys101, libRoom, EventType.OFFICE_HOURS, base, 0, 15, 0, 16, 0)); // Mon 15:00-16:00 OVERLAP with CS101!
     }
 
+        /**
+         * Ensures all documented intentional demo conflicts exist.
+         *
+         * <p>This method is safe to run on every startup. It updates known demo events back to
+         * conflict-causing locations/times if they were previously moved, and inserts missing
+         * conflict events when needed.</p>
+         */
+        public static void ensureIntentionalConflicts(DatabaseManager dbManager) throws SQLException {
+        CourseDAO courseDao = new CourseDAO(dbManager);
+        LocationDAO locationDao = new LocationDAO(dbManager);
+        ScheduledEventDAO eventDao = new ScheduledEventDAO(dbManager);
+
+        Course cs101 = courseDao.findByCode("CS101");
+        Course cs201 = courseDao.findByCode("CS201");
+        Course cs401 = courseDao.findByCode("CS401");
+        Course math201 = courseDao.findByCode("MATH201");
+        Course phys101 = courseDao.findByCode("PHYS101");
+        Course eng101 = courseDao.findByCode("ENG101");
+        if (cs101 == null || cs201 == null || cs401 == null
+            || math201 == null || phys101 == null || eng101 == null) {
+            return;
+        }
+
+        Location sciA101 = findLocation(locationDao, "Science Building A", "101");
+        Location sciA201 = findLocation(locationDao, "Science Building A", "201");
+        Location engHall = findLocation(locationDao, "Engineering Hall", "100");
+        Location libRoom = findLocation(locationDao, "Library", "Seminar-1");
+        if (sciA101 == null || sciA201 == null || engHall == null || libRoom == null) {
+            return;
+        }
+
+        Calendar base = findExistingDemoBaseMonday(eventDao, cs101.getCourseId());
+        if (base == null) {
+            base = getNextMonday();
+        }
+
+        // HARD_OVERLAP #1
+        upsertConflictEvent(eventDao, cs201.getCourseId(), sciA201.getLocId(), EventType.LECTURE,
+            base, 0, 9, 0, 10, 30);
+        upsertConflictEvent(eventDao, math201.getCourseId(), sciA201.getLocId(), EventType.LECTURE,
+            base, 0, 9, 30, 11, 0);
+
+        // HARD_OVERLAP #2
+        upsertConflictEvent(eventDao, eng101.getCourseId(), engHall.getLocId(), EventType.LECTURE,
+            base, 2, 14, 0, 15, 30);
+        upsertConflictEvent(eventDao, phys101.getCourseId(), engHall.getLocId(), EventType.LECTURE,
+            base, 2, 14, 30, 16, 0);
+
+        // HARD_OVERLAP #3
+        upsertConflictEvent(eventDao, cs101.getCourseId(), libRoom.getLocId(), EventType.OFFICE_HOURS,
+            base, 0, 15, 0, 16, 0);
+        upsertConflictEvent(eventDao, phys101.getCourseId(), libRoom.getLocId(), EventType.OFFICE_HOURS,
+            base, 0, 15, 0, 16, 0);
+
+        // TIGHT_TRANSITION
+        upsertConflictEvent(eventDao, cs101.getCourseId(), sciA101.getLocId(), EventType.LECTURE,
+            base, 3, 9, 0, 10, 30);
+        upsertConflictEvent(eventDao, cs401.getCourseId(), engHall.getLocId(), EventType.LECTURE,
+            base, 3, 10, 35, 12, 0);
+        }
+
     private static Calendar getNextMonday() {
         Calendar cal = Calendar.getInstance();
         int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
@@ -148,6 +210,93 @@ public class SeedData {
         cal.set(Calendar.SECOND, 0);
         cal.set(Calendar.MILLISECOND, 0);
         return cal;
+    }
+
+    private static Calendar findExistingDemoBaseMonday(ScheduledEventDAO eventDao, Integer cs101CourseId)
+            throws SQLException {
+        if (cs101CourseId == null) {
+            return null;
+        }
+        List<ScheduledEvent> cs101Events = eventDao.findByCourse(cs101CourseId);
+        for (ScheduledEvent e : cs101Events) {
+            if (e.getEventType() != EventType.LECTURE
+                    || e.getStartEpoch() == null
+                    || e.getEndEpoch() == null) {
+                continue;
+            }
+
+            Calendar start = Calendar.getInstance();
+            start.setTimeInMillis(e.getStartEpoch());
+            Calendar end = Calendar.getInstance();
+            end.setTimeInMillis(e.getEndEpoch());
+
+            if (start.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY
+                    && start.get(Calendar.HOUR_OF_DAY) == 9
+                    && start.get(Calendar.MINUTE) == 0
+                    && end.get(Calendar.HOUR_OF_DAY) == 10
+                    && end.get(Calendar.MINUTE) == 30) {
+                start.set(Calendar.HOUR_OF_DAY, 0);
+                start.set(Calendar.MINUTE, 0);
+                start.set(Calendar.SECOND, 0);
+                start.set(Calendar.MILLISECOND, 0);
+                return start;
+            }
+        }
+        return null;
+    }
+
+    private static Location findLocation(LocationDAO locationDao, String building, String roomNumber)
+            throws SQLException {
+        for (Location loc : locationDao.findAll()) {
+            if (Objects.equals(building, loc.getBuilding())
+                    && Objects.equals(roomNumber, loc.getRoomNumber())) {
+                return loc;
+            }
+        }
+        return null;
+    }
+
+    private static void upsertConflictEvent(ScheduledEventDAO eventDao,
+                                            Integer courseId,
+                                            Integer locId,
+                                            EventType type,
+                                            Calendar baseMonday,
+                                            int dayOffset,
+                                            int startHour,
+                                            int startMin,
+                                            int endHour,
+                                            int endMin) throws SQLException {
+        if (courseId == null || locId == null || type == null) {
+            return;
+        }
+
+        long startEpoch = buildEpoch(baseMonday, dayOffset, startHour, startMin);
+        long endEpoch = buildEpoch(baseMonday, dayOffset, endHour, endMin);
+
+        List<ScheduledEvent> courseEvents = eventDao.findByCourse(courseId);
+        for (ScheduledEvent existing : courseEvents) {
+            if (existing.getEventType() == type
+                    && Objects.equals(existing.getStartEpoch(), startEpoch)
+                    && Objects.equals(existing.getEndEpoch(), endEpoch)) {
+                if (!Objects.equals(existing.getLocId(), locId)) {
+                    existing.setLocId(locId);
+                    eventDao.update(existing);
+                }
+                return;
+            }
+        }
+
+        eventDao.insert(new ScheduledEvent(null, courseId, locId, type, startEpoch, endEpoch));
+    }
+
+    private static long buildEpoch(Calendar baseMonday, int dayOffset, int hour, int minute) {
+        Calendar cal = (Calendar) baseMonday.clone();
+        cal.add(Calendar.DAY_OF_YEAR, dayOffset);
+        cal.set(Calendar.HOUR_OF_DAY, hour);
+        cal.set(Calendar.MINUTE, minute);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTimeInMillis();
     }
 
     private static ScheduledEvent makeEvent(Course course, Location loc, EventType type,

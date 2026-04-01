@@ -558,7 +558,7 @@ public class DashboardController {
                     result.getResolved(), result.getTotalConflicts()));
 
             if (result.getTotalConflicts() == 0) {
-                ToastNotification.show("No hard-overlap conflicts to resolve!",
+                ToastNotification.show("No resolvable conflicts found!",
                         ToastNotification.ToastType.INFO);
             } else if (result.getResolved() > 0) {
                 ToastNotification.show(String.format("Resolved %d of %d conflicts!",

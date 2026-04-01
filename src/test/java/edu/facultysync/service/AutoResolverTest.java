@@ -185,10 +185,10 @@ class AutoResolverTest {
         assertEquals("Action 1", result.getActions().get(0));
     }
 
-    // ===== Only HARD_OVERLAP conflicts are resolved =====
+    // ===== Tight transitions are also resolved =====
 
     @Test
-    void resolveAll_ignoresTightTransitions() throws SQLException {
+    void resolveAll_resolvesTightTransitions() throws SQLException {
         ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);
         long baseTime = 100_000_000L;
         // Tight transition: same professor, different buildings, 5-min gap
@@ -201,8 +201,13 @@ class AutoResolverTest {
         AutoResolver resolver = new AutoResolver(dbManager, cache);
         AutoResolver.ResolveResult result = resolver.resolveAll();
 
-        // AutoResolver only resolves HARD_OVERLAP, not TIGHT_TRANSITION
-        assertEquals(0, result.getTotalConflicts(), "TIGHT_TRANSITION should not be counted");
+        assertEquals(1, result.getTotalConflicts());
+        assertEquals(1, result.getResolved());
+        assertEquals(0, result.getUnresolvable());
+
+        ConflictEngine engine = new ConflictEngine(dbManager, cache);
+        List<ConflictResult> remaining = engine.analyzeAll();
+        assertFalse(remaining.stream().anyMatch(c -> c.getSeverity() == Severity.TIGHT_TRANSITION));
     }
 
     // ===== Online events (no room) =====

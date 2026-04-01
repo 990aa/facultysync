@@ -138,6 +138,29 @@ class ConflictEngineTest {
         assertTrue(conflicts.stream().anyMatch(c -> c.getSeverity() == Severity.TIGHT_TRANSITION));
     }
 
+        @Test
+        void tightTransition_suggestsSameBuildingAlternatives() throws SQLException {
+        ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);
+        long baseTime = 150_000_000L;
+        dao.insert(new ScheduledEvent(null, courseA, locId1, EventType.LECTURE,
+            baseTime, baseTime + 60 * 60_000L));
+        dao.insert(new ScheduledEvent(null, courseB, locId2, EventType.LECTURE,
+            baseTime + 60 * 60_000L + 5 * 60_000L,
+            baseTime + 120 * 60_000L + 5 * 60_000L));
+
+        List<ConflictResult> conflicts = engine.analyzeAll();
+        ConflictResult tight = conflicts.stream()
+            .filter(c -> c.getSeverity() == Severity.TIGHT_TRANSITION)
+            .findFirst()
+            .orElse(null);
+
+        assertNotNull(tight);
+        assertNotNull(tight.getAvailableAlternatives());
+        assertFalse(tight.getAvailableAlternatives().isEmpty());
+        assertTrue(tight.getAvailableAlternatives().stream()
+            .allMatch(l -> "Building A".equals(l.getBuilding())));
+        }
+
     @Test
     void noTightTransition_enoughGap() throws SQLException {
         ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);

@@ -260,6 +260,30 @@ class SeedDataTest {
         assertTrue(tightTransitions >= 1, "Should have at least 1 tight transition conflict. Got: " + tightTransitions);
     }
 
+        @Test
+        void ensureIntentionalConflicts_restoresDemoConflicts() throws SQLException {
+        SeedData.seed(dbManager);
+
+        edu.facultysync.service.DataCache cache = new edu.facultysync.service.DataCache(dbManager);
+        cache.refresh();
+        edu.facultysync.service.AutoResolver resolver = new edu.facultysync.service.AutoResolver(dbManager, cache);
+        resolver.resolveAll();
+
+        SeedData.ensureIntentionalConflicts(dbManager);
+
+        edu.facultysync.service.ConflictEngine engine = new edu.facultysync.service.ConflictEngine(dbManager, cache);
+        List<edu.facultysync.model.ConflictResult> conflicts = engine.analyzeAll();
+        long hardOverlaps = conflicts.stream()
+            .filter(c -> c.getSeverity() == edu.facultysync.model.ConflictResult.Severity.HARD_OVERLAP)
+            .count();
+        long tightTransitions = conflicts.stream()
+            .filter(c -> c.getSeverity() == edu.facultysync.model.ConflictResult.Severity.TIGHT_TRANSITION)
+            .count();
+
+        assertTrue(hardOverlaps >= 3, "Should restore at least 3 hard overlaps");
+        assertTrue(tightTransitions >= 1, "Should restore at least 1 tight transition");
+        }
+
     // ===== Professor-Department associations =====
 
     @Test

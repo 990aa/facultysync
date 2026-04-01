@@ -39,6 +39,9 @@ public class App extends Application {
         // Seed demo data if database is empty
         SeedData.seedIfEmpty(dbManager);
 
+        // Re-inject documented demo conflicts in case previous runs resolved or moved them.
+        SeedData.ensureIntentionalConflicts(dbManager);
+
         // Undecorated stage for custom title bar
         primaryStage.initStyle(StageStyle.UNDECORATED);
 
