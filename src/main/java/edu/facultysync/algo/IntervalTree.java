@@ -4,7 +4,9 @@ import edu.facultysync.model.Schedulable;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A generic Interval Tree for O(log N) overlap detection.
@@ -119,12 +121,19 @@ public class IntervalTree<T extends Schedulable> {
      */
     public List<List<T>> findAllOverlaps() {
         List<T> all = inOrder();
+        Map<T, Integer> positionByIdentity = new IdentityHashMap<>();
+        for (int i = 0; i < all.size(); i++) {
+            positionByIdentity.put(all.get(i), i);
+        }
+
         List<List<T>> conflicts = new ArrayList<>();
         for (int i = 0; i < all.size(); i++) {
             T a = all.get(i);
             List<T> overlaps = queryOverlaps(a.getStart(), a.getEnd());
             for (T b : overlaps) {
-                if (a != b && a.getStart() <= b.getStart()) {
+                Integer idxA = positionByIdentity.get(a);
+                Integer idxB = positionByIdentity.get(b);
+                if (idxA != null && idxB != null && idxA < idxB) {
                     List<T> pair = new ArrayList<>();
                     pair.add(a);
                     pair.add(b);
