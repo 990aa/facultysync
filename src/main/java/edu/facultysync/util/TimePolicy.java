@@ -24,7 +24,7 @@ public final class TimePolicy {
 
     private static final ZoneId APP_ZONE = resolveZone();
     private static final DateTimeFormatter DATE_TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-    private static final DateTimeFormatter DATE_TIME_WITH_ZONE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'");
+    private static final DateTimeFormatter DATE_TIME_WITH_ZONE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private static final DateTimeFormatter DAY_FMT = DateTimeFormatter.ofPattern("EEE MM/dd");
     private static final DateTimeFormatter WEEK_RANGE_FMT = DateTimeFormatter.ofPattern("MMM d, yyyy");
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
@@ -62,7 +62,8 @@ public final class TimePolicy {
         if (epochMs == null) {
             return "";
         }
-        return DATE_TIME_WITH_ZONE_FMT.format(Instant.ofEpochMilli(epochMs).atZone(APP_ZONE));
+        return DATE_TIME_WITH_ZONE_FMT.format(Instant.ofEpochMilli(epochMs).atZone(APP_ZONE))
+                + " " + zoneLabel();
     }
 
     public static String formatDay(long epochMs) {

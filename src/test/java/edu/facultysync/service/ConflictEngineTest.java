@@ -96,6 +96,21 @@ class ConflictEngineTest {
     }
 
     @Test
+    void professorOverlap_detectedAcrossDifferentRooms() throws SQLException {
+        ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);
+        long base = 500_000_000L;
+
+        // courseA and courseB are taught by the same professor.
+        dao.insert(new ScheduledEvent(null, courseA, locId1, EventType.LECTURE,
+                base, base + 60 * 60_000L));
+        dao.insert(new ScheduledEvent(null, courseB, locId2, EventType.LECTURE,
+                base + 15 * 60_000L, base + 75 * 60_000L));
+
+        List<ConflictResult> conflicts = engine.analyzeAll();
+        assertTrue(conflicts.stream().anyMatch(c -> c.getSeverity() == Severity.PROFESSOR_OVERLAP));
+    }
+
+    @Test
     void hardOverlap_suggestsAlternatives() throws SQLException {
         ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);
         dao.insert(new ScheduledEvent(null, courseA, locId1, EventType.LECTURE, 1000L, 3000L));

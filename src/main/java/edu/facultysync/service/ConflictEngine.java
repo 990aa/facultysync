@@ -16,6 +16,7 @@ import java.util.stream.Collectors;
  * <p>Conflict types detected:
  * <ul>
  *   <li><b>HARD_OVERLAP</b> – same room, overlapping times</li>
+ *   <li><b>PROFESSOR_OVERLAP</b> – same professor, overlapping times</li>
  *   <li><b>TIGHT_TRANSITION</b> – same professor, different buildings, gap &lt; threshold</li>
  * </ul>
  */

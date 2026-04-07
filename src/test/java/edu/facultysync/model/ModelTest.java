@@ -396,8 +396,9 @@ class ModelTest {
 
     @Test
     void conflictSeverity_values() {
-        assertEquals(2, ConflictResult.Severity.values().length);
+        assertEquals(3, ConflictResult.Severity.values().length);
         assertNotNull(ConflictResult.Severity.valueOf("HARD_OVERLAP"));
+        assertNotNull(ConflictResult.Severity.valueOf("PROFESSOR_OVERLAP"));
         assertNotNull(ConflictResult.Severity.valueOf("TIGHT_TRANSITION"));
     }
 }
