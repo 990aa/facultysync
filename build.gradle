@@ -69,6 +69,7 @@ tasks.register('seedDb', JavaExec) {
     description = 'Seed the database with demo data and restore intentional conflicts'
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'edu.facultysync.SeedDatabase'
+    jvmArgs += ['--enable-native-access=ALL-UNNAMED']
 }
 
 // Build standalone distribution zip
