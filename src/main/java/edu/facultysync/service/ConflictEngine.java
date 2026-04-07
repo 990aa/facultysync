@@ -21,15 +21,19 @@ import java.util.stream.Collectors;
  */
 public class ConflictEngine {
 
-    /** Minimum gap (millis) between events in different buildings before warning. */
-    private static final long TIGHT_TRANSITION_THRESHOLD_MS = 15 * 60_000; // 15 minutes
+    /** Default minimum gap (millis) between events in different buildings before warning. */
+    private static final long DEFAULT_TIGHT_TRANSITION_THRESHOLD_MS = 15 * 60_000;
+    private static final String THRESHOLD_MINUTES_PROPERTY = "facultysync.tightTransitionMinutes";
+    private static final String THRESHOLD_MINUTES_ENV = "FACULTYSYNC_TIGHT_TRANSITION_MINUTES";
 
     private final DatabaseManager dbManager;
     private final DataCache cache;
+    private final long tightTransitionThresholdMs;
 
     public ConflictEngine(DatabaseManager dbManager, DataCache cache) {
         this.dbManager = dbManager;
         this.cache = cache;
+        this.tightTransitionThresholdMs = resolveThresholdMs();
     }
 
     /**
@@ -95,7 +99,7 @@ public class ConflictEngine {
                 ScheduledEvent a = profEvents.get(i);
                 ScheduledEvent b = profEvents.get(i + 1);
                 long gap = b.getStart() - a.getEnd();
-                if (gap >= 0 && gap < TIGHT_TRANSITION_THRESHOLD_MS
+                if (gap >= 0 && gap < tightTransitionThresholdMs
                         && a.getLocId() != null && b.getLocId() != null) {
                     Location locA = cache.getLocation(a.getLocId());
                     Location locB = cache.getLocation(b.getLocId());
@@ -124,6 +128,28 @@ public class ConflictEngine {
         }
 
         return conflicts;
+    }
+
+    public long getTightTransitionThresholdMs() {
+        return tightTransitionThresholdMs;
+    }
+
+    private long resolveThresholdMs() {
+        String raw = System.getProperty(THRESHOLD_MINUTES_PROPERTY);
+        if (raw == null || raw.isBlank()) {
+            raw = System.getenv(THRESHOLD_MINUTES_ENV);
+        }
+        if (raw != null && !raw.isBlank()) {
+            try {
+                long minutes = Long.parseLong(raw.trim());
+                if (minutes > 0) {
+                    return minutes * 60_000;
+                }
+            } catch (NumberFormatException ignored) {
+                // Fall back to default if misconfigured.
+            }
+        }
+        return DEFAULT_TIGHT_TRANSITION_THRESHOLD_MS;
     }
 
     private String formatEvent(ScheduledEvent e) {
