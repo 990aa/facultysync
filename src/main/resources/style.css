@@ -482,6 +482,41 @@
     -fx-background-color: #dfe6e9;
 }
 
+.calendar-jump-label {
+    -fx-font-size: 12px;
+    -fx-text-fill: #7f8c8d;
+    -fx-padding: 0 0 0 8;
+}
+
+.calendar-week-picker {
+    -fx-pref-width: 150;
+}
+
+.calendar-legend-dot {
+    -fx-background-radius: 3;
+}
+
+.calendar-legend-label {
+    -fx-font-size: 11px;
+    -fx-text-fill: #7f8c8d;
+}
+
+.calendar-legend-lecture {
+    -fx-background-color: #27ae60;
+}
+
+.calendar-legend-exam {
+    -fx-background-color: #2980b9;
+}
+
+.calendar-legend-office {
+    -fx-background-color: #8e44ad;
+}
+
+.calendar-legend-conflict {
+    -fx-background-color: #e74c3c;
+}
+
 .calendar-week-label {
     -fx-font-size: 16px;
     -fx-font-weight: bold;
@@ -741,5 +776,24 @@
 }
 
 .toast-close:hover {
+    -fx-text-fill: #2c3e50;
+}
+
+/* ============================================================
+   BUSY OVERLAY
+   ============================================================ */
+.busy-overlay {
+    -fx-background-color: rgba(44, 62, 80, 0.22);
+}
+
+.busy-overlay-card {
+    -fx-background-color: white;
+    -fx-padding: 18 24;
+    -fx-background-radius: 10;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.16), 12, 0, 0, 3);
+}
+
+.busy-overlay-label {
+    -fx-font-size: 13px;
     -fx-text-fill: #2c3e50;
 }
