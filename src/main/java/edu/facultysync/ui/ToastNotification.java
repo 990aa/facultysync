@@ -10,7 +10,6 @@ import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**

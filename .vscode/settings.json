@@ -2,5 +2,26 @@
     "java.import.gradle.enabled": true,
     "java.import.maven.enabled": false,
     "java.configuration.updateBuildConfiguration": "automatic",
-    "css.validate": false
+    "css.validate": false,
+    "java.project.resourceFilters": [
+        "node_modules",
+        ".git",
+        "__CREATED_BY_JAVA_LANGUAGE_SERVER__",
+        ".settings",
+        "build",
+        "bin",
+        ".gradle",
+        "out",
+        "target"
+    ],
+    "search.exclude": {
+        "**/build": true,
+        "**/bin": true,
+        "**/.gradle": true
+    },
+    "files.watcherExclude": {
+        "**/build/**": true,
+        "**/bin/**": true,
+        "**/.gradle/**": true
+    }
 }

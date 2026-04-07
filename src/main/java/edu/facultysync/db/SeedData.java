@@ -79,9 +79,7 @@ public class SeedData {
         Location sciB102 = locDao.insert(new Location(null, "Science Building B", "102", 150, 1));
         Location sciB202 = locDao.insert(new Location(null, "Science Building B", "202", 60, 0));
         Location engHall = locDao.insert(new Location(null, "Engineering Hall", "100", 120, 1));
-        Location engLab = locDao.insert(new Location(null, "Engineering Hall", "Lab-1", 40, 1));
         Location busCenter = locDao.insert(new Location(null, "Business Center", "A1", 200, 1));
-        Location busSmall = locDao.insert(new Location(null, "Business Center", "B2", 30, 0));
         Location libRoom = locDao.insert(new Location(null, "Library", "Seminar-1", 25, 1));
 
         // ===== SCHEDULED EVENTS =====

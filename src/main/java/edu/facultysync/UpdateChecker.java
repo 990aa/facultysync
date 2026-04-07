@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 
 import javafx.application.Platform;
 import javafx.scene.control.*;
-import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.*;
