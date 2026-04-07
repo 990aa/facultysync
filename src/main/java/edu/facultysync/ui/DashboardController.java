@@ -1,7 +1,10 @@
 package edu.facultysync.ui;
 
+import com.google.common.eventbus.EventBus;
 import edu.facultysync.core.AppModule;
 import edu.facultysync.db.*;
+import edu.facultysync.events.CourseAddedEvent;
+import edu.facultysync.events.DataChangedEvent;
 import edu.facultysync.io.CsvImporter;
 import edu.facultysync.io.ReportExporter;
 import edu.facultysync.model.*;
@@ -42,6 +45,7 @@ public class DashboardController {
     private final Stage stage;
     private final DataCache cache;
     private final ConflictEngine conflictEngine;
+    private final EventBus eventBus;
     private final StackPane rootStack; // root for toasts overlay
     private final BorderPane root;
 
@@ -67,6 +71,7 @@ public class DashboardController {
         this.stage = stage;
         this.cache = appModule.cache();
         this.conflictEngine = appModule.conflictEngine();
+        this.eventBus = appModule.eventBus();
 
         root = buildLayout();
 
@@ -83,6 +88,7 @@ public class DashboardController {
         this.stage = stage;
         this.cache = new DataCache(dbManager);
         this.conflictEngine = new ConflictEngine(dbManager, cache);
+        this.eventBus = new EventBus("FacultySyncUIBus");
 
         cache.refresh();
         root = buildLayout();
@@ -116,7 +122,7 @@ public class DashboardController {
         tabPane.getStyleClass().add("main-tab-pane");
 
         // Home tab
-        homePage = new HomePage(dbManager, cache, tabPane);
+        homePage = new HomePage(dbManager, cache, tabPane, eventBus);
         Tab homeTab = new Tab("  \u2302 Home  ", homePage.getContent());
         homeTab.setId("homeTab");
 
@@ -131,12 +137,12 @@ public class DashboardController {
         conflictTab.setId("conflictTab");
 
         // Calendar tab
-        calendarView = new CalendarView(dbManager, cache);
+        calendarView = new CalendarView(dbManager, cache, eventBus);
         Tab calendarTab = new Tab("  \uD83D\uDCC6 Calendar  ", calendarView.getView());
         calendarTab.setId("calendarTab");
 
         // Analytics tab
-        analyticsView = new AnalyticsView(dbManager, cache);
+        analyticsView = new AnalyticsView(dbManager, cache, eventBus);
         Tab analyticsTab = new Tab("  \uD83D\uDCCA Analytics  ", analyticsView.getView());
         analyticsTab.setId("analyticsTab");
 
@@ -924,6 +930,8 @@ public class DashboardController {
                     return created;
                 }, created -> {
                     refreshAllViews();
+                    eventBus.post(new CourseAddedEvent(created));
+                    eventBus.post(new DataChangedEvent("course-added"));
                     reload.run();
                 })
         ));
@@ -1399,6 +1407,8 @@ public class DashboardController {
                     },
                     created -> {
                         refreshAllViews();
+                        eventBus.post(new CourseAddedEvent(created));
+                        eventBus.post(new DataChangedEvent("course-added"));
                         ToastNotification.show("Course '" + created.getCourseCode() + "' added",
                                 ToastNotification.ToastType.SUCCESS);
                     }
