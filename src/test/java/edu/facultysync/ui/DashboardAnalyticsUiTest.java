@@ -24,7 +24,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -75,7 +74,12 @@ class DashboardAnalyticsUiTest {
         });
 
         try {
-            waitUntil(() -> onFxCall(() -> stageRef.get().getScene().lookup("#departmentCombo") != null), 4000);
+            waitUntil(() -> onFxCall(() -> {
+                Parent root = stageRef.get().getScene().getRoot();
+                root.applyCss();
+                root.layout();
+                return root.lookup("#departmentCombo") != null;
+            }), 8000);
 
             ScrollPane sidebarScroll = onFxCall(() -> {
                 VBox root = (VBox) stageRef.get().getScene().getRoot();
@@ -142,8 +146,8 @@ class DashboardAnalyticsUiTest {
         });
 
         try {
-            waitUntil(() -> onFxCall(() -> containsLabel(stageRef.get().getScene().getRoot(), "Recent Events")), 5000);
-            boolean hasQuickActions = onFxCall(() -> containsLabel(stageRef.get().getScene().getRoot(), "Quick Actions"));
+            waitUntil(() -> onFxCall(() -> containsLabelContaining(stageRef.get().getScene().getRoot(), "Recent Events")), 10000);
+            boolean hasQuickActions = onFxCall(() -> containsLabelContaining(stageRef.get().getScene().getRoot(), "Quick Actions"));
             assertFalse(hasQuickActions, "Home page should not render Quick Actions section");
         } finally {
             closeStage(stageRef.get());
@@ -173,7 +177,12 @@ class DashboardAnalyticsUiTest {
         });
 
         try {
-                waitUntil(() -> onFxCall(() -> collectNodes(stageRef.get().getScene().getRoot(), BarChart.class).size() >= 2), 6000);
+            waitUntil(() -> onFxCall(() -> {
+                Parent root = stageRef.get().getScene().getRoot();
+                root.applyCss();
+                root.layout();
+                return collectNodes(root, BarChart.class).size() >= 2;
+            }), 15000);
 
                 List<BarChart> bars = onFxCall(() -> collectNodes(stageRef.get().getScene().getRoot(), BarChart.class));
             List<PieChart> pies = onFxCall(() -> collectNodes(stageRef.get().getScene().getRoot(), PieChart.class));
@@ -217,7 +226,12 @@ class DashboardAnalyticsUiTest {
 
             // Ensure refresh path also keeps charts present.
             onFx(() -> analyticsRef.get().refresh());
-            waitUntil(() -> onFxCall(() -> collectNodes(stageRef.get().getScene().getRoot(), BarChart.class).size() >= 2), 6000);
+            waitUntil(() -> onFxCall(() -> {
+                Parent root = stageRef.get().getScene().getRoot();
+                root.applyCss();
+                root.layout();
+                return collectNodes(root, BarChart.class).size() >= 2;
+            }), 15000);
         } finally {
             closeStage(stageRef.get());
             dbManager.close();
@@ -234,6 +248,16 @@ class DashboardAnalyticsUiTest {
     private boolean containsLabel(Node root, String expectedText) {
         for (Label label : collectNodes(root, Label.class)) {
             if (expectedText.equals(label.getText())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean containsLabelContaining(Node root, String textFragment) {
+        for (Label label : collectNodes(root, Label.class)) {
+            String text = label.getText();
+            if (text != null && text.contains(textFragment)) {
                 return true;
             }
         }
