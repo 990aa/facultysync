@@ -1,11 +1,11 @@
 module edu.facultysync {
-    requires javafx.controls;
-    requires javafx.graphics;
+    requires transitive javafx.controls;
+    requires transitive javafx.graphics;
     requires java.sql;
     requires java.desktop;
     requires org.slf4j;
-    requires org.apache.commons.csv;
-    requires com.google.common;
+    requires transitive org.apache.commons.csv;
+    requires transitive com.google.common;
 
     exports edu.facultysync;
     exports edu.facultysync.algo;

@@ -3,7 +3,6 @@ package edu.facultysync.algo;
 import edu.facultysync.model.Schedulable;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
