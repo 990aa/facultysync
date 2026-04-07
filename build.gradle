@@ -63,12 +63,12 @@ sourceSets {
     }
 }
 
-// Seed database and run conflict analysis + auto-resolve
-tasks.register('seedAndResolve', JavaExec) {
+// Seed demo database content (no auto-resolution)
+tasks.register('seedDb', JavaExec) {
     group = 'application'
-    description = 'Seed the database with demo data and auto-resolve conflicts'
+    description = 'Seed the database with demo data and restore intentional conflicts'
     classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'edu.facultysync.SeedAndResolve'
+    mainClass = 'edu.facultysync.SeedDatabase'
 }
 
 // Build standalone distribution zip
