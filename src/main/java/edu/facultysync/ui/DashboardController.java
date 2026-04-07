@@ -989,4 +989,261 @@ public class DashboardController {
             );
         });
     }
+
+    private void handleEditEvent(ScheduledEvent selected) {
+        if (selected == null || selected.getEventId() == null) {
+            return;
+        }
+        if (cache.getAllCourses().isEmpty()) {
+            ToastNotification.show("Add a course first", ToastNotification.ToastType.WARNING);
+            return;
+        }
+
+        Dialog<ScheduledEvent> dialog = new Dialog<>();
+        dialog.setTitle("Edit Event");
+        dialog.setHeaderText("Update selected event:");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(10));
+
+        ComboBox<Course> courseBox = new ComboBox<>();
+        courseBox.getItems().addAll(cache.getAllCourses().values());
+        if (selected.getCourseId() != null) {
+            cache.getAllCourses().values().stream()
+                    .filter(c -> Objects.equals(c.getCourseId(), selected.getCourseId()))
+                    .findFirst()
+                    .ifPresent(courseBox::setValue);
+        }
+        if (courseBox.getValue() == null && !courseBox.getItems().isEmpty()) {
+            courseBox.getSelectionModel().selectFirst();
+        }
+
+        ComboBox<String> typeBox = new ComboBox<>(FXCollections.observableArrayList("Lecture", "Exam", "Office Hours"));
+        String selectedType = selected.getEventType() != null ? selected.getEventType().getDisplay() : null;
+        if (selectedType != null) {
+            typeBox.setValue(selectedType);
+        }
+        if (typeBox.getValue() == null) {
+            typeBox.getSelectionModel().selectFirst();
+        }
+
+        ComboBox<Location> locBox = new ComboBox<>();
+        locBox.setPromptText("(Optional – leave for online)");
+        locBox.getItems().addAll(cache.getAllLocations().values());
+        if (selected.getLocId() != null) {
+            cache.getAllLocations().values().stream()
+                    .filter(l -> Objects.equals(l.getLocId(), selected.getLocId()))
+                    .findFirst()
+                    .ifPresent(locBox::setValue);
+        }
+
+        TextField startField = new TextField(selected.getStartEpoch() != null
+                ? DATE_FMT.format(new Date(selected.getStartEpoch())) : "");
+        startField.setPromptText("yyyy-MM-dd HH:mm");
+
+        TextField endField = new TextField(selected.getEndEpoch() != null
+                ? DATE_FMT.format(new Date(selected.getEndEpoch())) : "");
+        endField.setPromptText("yyyy-MM-dd HH:mm");
+
+        grid.add(new Label("Course:"), 0, 0); grid.add(courseBox, 1, 0);
+        grid.add(new Label("Type:"), 0, 1); grid.add(typeBox, 1, 1);
+        grid.add(new Label("Location:"), 0, 2); grid.add(locBox, 1, 2);
+        grid.add(new Label("Start:"), 0, 3); grid.add(startField, 1, 3);
+        grid.add(new Label("End:"), 0, 4); grid.add(endField, 1, 4);
+        dialog.getDialogPane().setContent(grid);
+
+        ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        dialog.setResultConverter(btn -> {
+            if (btn != saveBtn || courseBox.getValue() == null) {
+                return null;
+            }
+            try {
+                Long start = DATE_FMT.parse(startField.getText().trim()).getTime();
+                Long end = DATE_FMT.parse(endField.getText().trim()).getTime();
+                if (end <= start) {
+                    return null;
+                }
+                Integer locId = locBox.getValue() != null ? locBox.getValue().getLocId() : null;
+                ScheduledEvent.EventType et = ScheduledEvent.EventType.fromString(typeBox.getValue());
+                ScheduledEvent updated = new ScheduledEvent(
+                        selected.getEventId(),
+                        courseBox.getValue().getCourseId(),
+                        locId,
+                        et,
+                        start,
+                        end
+                );
+                return updated;
+            } catch (Exception ex) {
+                return null;
+            }
+        });
+
+        dialog.showAndWait().ifPresent(updated -> runDbTask(
+                "EditEvent",
+                "Saving event changes...",
+                () -> {
+                    new ScheduledEventDAO(dbManager).update(updated);
+                    cache.refresh();
+                    return updated;
+                },
+                result -> {
+                    refreshAllViews();
+                    ToastNotification.show("Event updated successfully", ToastNotification.ToastType.SUCCESS);
+                }
+        ));
+    }
+
+    private void handleDeleteEvent(ScheduledEvent selected) {
+        if (selected == null || selected.getEventId() == null) {
+            return;
+        }
+
+        String label = selected.getCourseCode() != null
+                ? selected.getCourseCode()
+                : "Event #" + selected.getEventId();
+
+        Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+        confirm.setTitle("Delete Event");
+        confirm.setHeaderText("Delete selected event?");
+        confirm.setContentText(label + " will be permanently removed.");
+
+        confirm.showAndWait().ifPresent(btn -> {
+            if (btn != ButtonType.OK) {
+                return;
+            }
+            runDbTask(
+                    "DeleteEvent",
+                    "Deleting event...",
+                    () -> {
+                        new ScheduledEventDAO(dbManager).delete(selected.getEventId());
+                        cache.refresh();
+                        return selected.getEventId();
+                    },
+                    deletedId -> {
+                        refreshAllViews();
+                        ToastNotification.show("Event deleted", ToastNotification.ToastType.SUCCESS);
+                    }
+            );
+        });
+    }
+
+    private void initializeBusyOverlay() {
+        ProgressIndicator indicator = new ProgressIndicator();
+        indicator.setMaxSize(46, 46);
+
+        busyOverlayLabel.getStyleClass().add("busy-overlay-label");
+
+        VBox content = new VBox(12, indicator, busyOverlayLabel);
+        content.setAlignment(Pos.CENTER);
+        content.getStyleClass().add("busy-overlay-card");
+
+        busyOverlay.getChildren().setAll(content);
+        busyOverlay.getStyleClass().add("busy-overlay");
+        busyOverlay.setVisible(false);
+        busyOverlay.setManaged(false);
+        busyOverlay.setMouseTransparent(true);
+
+        rootStack.getChildren().add(busyOverlay);
+        StackPane.setAlignment(busyOverlay, Pos.CENTER);
+    }
+
+    private void showBusy(String message) {
+        Platform.runLater(() -> {
+            busyDepth++;
+            busyOverlayLabel.setText(message != null ? message : "Loading...");
+            busyOverlay.setVisible(true);
+            busyOverlay.toFront();
+        });
+    }
+
+    private void hideBusy() {
+        Platform.runLater(() -> {
+            busyDepth = Math.max(0, busyDepth - 1);
+            if (busyDepth == 0) {
+                busyOverlay.setVisible(false);
+            }
+        });
+    }
+
+    private void refreshAllViews() {
+        refreshData();
+        departmentCombo.getItems().setAll(cache.getAllDepartments().values());
+        homePage.refresh();
+        calendarView.refresh();
+        analyticsView.refresh();
+    }
+
+    private <T> void runDbTask(
+            String threadName,
+            String loadingMessage,
+            Callable<T> work,
+            Consumer<T> onSuccess
+    ) {
+        showBusy(loadingMessage);
+
+        Task<T> task = new Task<>() {
+            @Override
+            protected T call() throws Exception {
+                return work.call();
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            hideBusy();
+            if (onSuccess != null) {
+                onSuccess.accept(task.getValue());
+            }
+        });
+
+        task.setOnFailed(e -> {
+            hideBusy();
+            String message = task.getException() != null && task.getException().getMessage() != null
+                    ? task.getException().getMessage()
+                    : "Unknown error";
+            statusLabel.setText("Operation failed: " + message);
+            ToastNotification.show("Operation failed: " + message, ToastNotification.ToastType.ERROR);
+        });
+
+        Thread thread = new Thread(task, threadName);
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void showImportDiagnostics(CsvImporter.ImportReport report) {
+        if (report == null || report.getFailures().isEmpty()) {
+            return;
+        }
+
+        StringBuilder details = new StringBuilder();
+        details.append("Imported ")
+                .append(report.getImportedCount())
+                .append(" of ")
+                .append(report.getTotalRows())
+                .append(" rows.\n")
+                .append("Skipped rows:\n\n");
+
+        for (CsvImporter.ImportFailure failure : report.getFailures()) {
+            details.append("Row ")
+                    .append(failure.getRowNumber())
+                    .append(": ")
+                    .append(failure.getReason())
+                    .append("\n");
+        }
+
+        Alert alert = new Alert(Alert.AlertType.WARNING);
+        alert.setTitle("CSV Import Diagnostics");
+        alert.setHeaderText(report.getFailureCount() + " row(s) were skipped");
+
+        TextArea area = new TextArea(details.toString());
+        area.setEditable(false);
+        area.setWrapText(true);
+        area.setPrefSize(600, 340);
+        alert.getDialogPane().setContent(area);
+        alert.showAndWait();
+    }
 }
