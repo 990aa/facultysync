@@ -79,7 +79,9 @@ public class SeedData {
         Location sciB102 = locDao.insert(new Location(null, "Science Building B", "102", 150, 1));
         Location sciB202 = locDao.insert(new Location(null, "Science Building B", "202", 60, 0));
         Location engHall = locDao.insert(new Location(null, "Engineering Hall", "100", 120, 1));
+        Location engLab = locDao.insert(new Location(null, "Engineering Hall", "200", 90, 1));
         Location busCenter = locDao.insert(new Location(null, "Business Center", "A1", 200, 1));
+        Location busAnnex = locDao.insert(new Location(null, "Business Center", "B2", 120, 1));
         Location libRoom = locDao.insert(new Location(null, "Library", "Seminar-1", 25, 1));
 
         // ===== SCHEDULED EVENTS =====
@@ -101,8 +103,8 @@ public class SeedData {
         eventDao.insert(makeEvent(cs101, sciA101, EventType.LECTURE, base, 1, 9, 0, 10, 30));    // Tue 9:00-10:30
         eventDao.insert(makeEvent(cs301, sciA301, EventType.LECTURE, base, 1, 11, 0, 12, 30));   // Tue 11:00-12:30
         eventDao.insert(makeEvent(phys201, sciB202, EventType.LECTURE, base, 1, 13, 0, 14, 30)); // Tue 13:00-14:30
-        eventDao.insert(makeEvent(bus101, busCenter, EventType.LECTURE, base, 1, 10, 0, 11, 30));// Tue 10:00-11:30
-        eventDao.insert(makeEvent(eng101, engHall, EventType.LECTURE, base, 1, 15, 0, 16, 30));  // Tue 15:00-16:30
+        eventDao.insert(makeEvent(bus101, busAnnex, EventType.LECTURE, base, 1, 10, 0, 11, 30)); // Tue 10:00-11:30
+        eventDao.insert(makeEvent(eng101, engLab, EventType.LECTURE, base, 1, 15, 0, 16, 30));   // Tue 15:00-16:30
 
         // Wednesday events
         eventDao.insert(makeEvent(math101, sciA101, EventType.LECTURE, base, 2, 9, 0, 10, 30));  // Wed 9:00-10:30
