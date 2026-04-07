@@ -67,8 +67,20 @@ public class DatabaseManager {
      * Initializes the full schema (idempotent – uses IF NOT EXISTS).
      */
     public void initializeSchema() throws SQLException {
-        Connection conn = getSchemaConnection();
-        try (Statement stmt = conn.createStatement()) {
+        if (sharedMemory) {
+            Connection conn = getSchemaConnection();
+            try (Statement stmt = conn.createStatement()) {
+                createSchema(stmt);
+            }
+        } else {
+            try (Connection conn = getConnection();
+                 Statement stmt = conn.createStatement()) {
+                createSchema(stmt);
+            }
+        }
+    }
+
+    private void createSchema(Statement stmt) throws SQLException {
 
             stmt.execute("CREATE TABLE IF NOT EXISTS departments ("
                     + "dept_id INTEGER PRIMARY KEY AUTOINCREMENT, "
@@ -109,7 +121,6 @@ public class DatabaseManager {
             // Index for fast overlap queries
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_events_time ON scheduled_events(start_epoch, end_epoch)");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_events_loc ON scheduled_events(loc_id)");
-        }
     }
 
     /**

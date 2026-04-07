@@ -2,11 +2,13 @@ package edu.facultysync.db;
 
 import edu.facultysync.model.*;
 import edu.facultysync.model.ScheduledEvent.EventType;
+import edu.facultysync.util.TimePolicy;
 
 import java.sql.SQLException;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Objects;
+import java.util.TimeZone;
 
 /**
  * Seeds the database with realistic demonstration data.
@@ -200,7 +202,7 @@ public class SeedData {
         }
 
     private static Calendar getNextMonday() {
-        Calendar cal = Calendar.getInstance();
+        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(TimePolicy.zone()));
         int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
         int daysUntilMonday = (Calendar.MONDAY - dayOfWeek + 7) % 7;
         if (daysUntilMonday == 0) daysUntilMonday = 7; // next Monday, not today
@@ -225,9 +227,9 @@ public class SeedData {
                 continue;
             }
 
-            Calendar start = Calendar.getInstance();
+            Calendar start = Calendar.getInstance(TimeZone.getTimeZone(TimePolicy.zone()));
             start.setTimeInMillis(e.getStartEpoch());
-            Calendar end = Calendar.getInstance();
+            Calendar end = Calendar.getInstance(TimeZone.getTimeZone(TimePolicy.zone()));
             end.setTimeInMillis(e.getEndEpoch());
 
             if (start.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY
