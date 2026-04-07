@@ -9,8 +9,11 @@ import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * Robust CSV parser for importing university schedule data.
@@ -40,20 +43,38 @@ public class CsvImporter {
      */
     public List<ScheduledEvent> importFile(File file, ProgressCallback progressCallback)
             throws IOException, SQLException {
+        return importFileWithReport(file, progressCallback).getImportedEvents();
+    }
 
-        List<String[]> rows = readCsv(file);
+    /**
+     * Import events and return detailed diagnostics for dropped rows.
+     */
+    public ImportReport importFileWithReport(File file, ProgressCallback progressCallback)
+            throws IOException, SQLException {
+
+        List<CsvRow> rows = readCsv(file);
         List<ScheduledEvent> imported = new ArrayList<>();
+        List<ImportFailure> failures = new ArrayList<>();
 
         CourseDAO courseDAO = new CourseDAO(dbManager);
         LocationDAO locationDAO = new LocationDAO(dbManager);
         ScheduledEventDAO eventDAO = new ScheduledEventDAO(dbManager);
 
+        Map<String, Integer> locationIndex = new HashMap<>();
+        for (Location loc : locationDAO.findAll()) {
+            locationIndex.put(locationKey(loc.getBuilding(), loc.getRoomNumber()), loc.getLocId());
+        }
+
         int total = rows.size();
         int current = 0;
 
-        for (String[] cols : rows) {
+        for (CsvRow row : rows) {
             current++;
-            if (cols.length < 6) continue; // skip malformed rows
+            String[] cols = row.cols();
+            if (cols.length < 6) {
+                failures.add(new ImportFailure(row.rowNumber(), "Expected 6 columns", row.rawLine()));
+                continue;
+            }
 
             String courseCode = cols[0].trim();
             String eventTypeStr = cols[1].trim();
@@ -63,64 +84,104 @@ public class CsvImporter {
             String endStr = cols[5].trim();
 
             if (progressCallback != null)
-                progressCallback.onProgress(current, total, "Checking " + courseCode + "...");
+                progressCallback.onProgress(current, total, "Checking row " + row.rowNumber() + "...");
+
+            if (courseCode.isEmpty()) {
+                failures.add(new ImportFailure(row.rowNumber(), "Missing course code", row.rawLine()));
+                continue;
+            }
 
             // Resolve course (must exist)
             Course course = courseDAO.findByCode(courseCode);
-            if (course == null) continue; // skip unknown courses
+            if (course == null) {
+                failures.add(new ImportFailure(row.rowNumber(),
+                        "Unknown course code: " + courseCode, row.rawLine()));
+                continue;
+            }
 
             // Parse event type
             EventType eventType = EventType.fromString(eventTypeStr);
-            if (eventType == null) continue;
+            if (eventType == null) {
+                failures.add(new ImportFailure(row.rowNumber(),
+                        "Unknown event type: " + eventTypeStr, row.rawLine()));
+                continue;
+            }
 
             // Resolve location – use Wrapper (Integer) to allow null for online events
             Integer locId = null;
             if (!building.isEmpty() && !roomNumber.isEmpty()) {
-                // Try to find existing location
-                List<Location> allLocs = locationDAO.findAll();
-                for (Location loc : allLocs) {
-                    if (building.equalsIgnoreCase(loc.getBuilding())
-                            && roomNumber.equalsIgnoreCase(loc.getRoomNumber())) {
-                        locId = loc.getLocId();
-                        break;
-                    }
-                }
+                String key = locationKey(building, roomNumber);
+                locId = locationIndex.get(key);
                 if (locId == null) {
-                    // Create location on the fly
-                    Location newLoc = new Location(null, building, roomNumber, null, null);
-                    locationDAO.insert(newLoc);
-                    locId = newLoc.getLocId();
+                    try {
+                        Location newLoc = new Location(null, building, roomNumber, null, null);
+                        locationDAO.insert(newLoc);
+                        locId = newLoc.getLocId();
+                        locationIndex.put(key, locId);
+                    } catch (SQLException ex) {
+                        failures.add(new ImportFailure(row.rowNumber(),
+                                "Failed to create location " + building + " " + roomNumber
+                                        + ": " + ex.getMessage(),
+                                row.rawLine()));
+                        continue;
+                    }
                 }
             }
 
             // Parse epoch timestamps
             Long startEpoch = parseEpoch(startStr);
             Long endEpoch = parseEpoch(endStr);
-            if (startEpoch == null || endEpoch == null || endEpoch <= startEpoch) continue;
+            if (startEpoch == null || endEpoch == null) {
+                failures.add(new ImportFailure(row.rowNumber(),
+                        "Invalid datetime value", row.rawLine()));
+                continue;
+            }
+            if (endEpoch <= startEpoch) {
+                failures.add(new ImportFailure(row.rowNumber(),
+                        "End time must be after start time", row.rawLine()));
+                continue;
+            }
 
             ScheduledEvent event = new ScheduledEvent(null, course.getCourseId(), locId,
                     eventType, startEpoch, endEpoch);
-            eventDAO.insert(event);
-            imported.add(event);
+            try {
+                eventDAO.insert(event);
+                imported.add(event);
+            } catch (SQLException ex) {
+                failures.add(new ImportFailure(row.rowNumber(),
+                        "Failed to insert event: " + ex.getMessage(), row.rawLine()));
+            }
         }
 
-        if (progressCallback != null)
+        if (progressCallback != null) {
             progressCallback.onProgress(total, total, "Import complete.");
+        }
 
-        return imported;
+        return new ImportReport(imported, failures, total);
     }
 
-    private List<String[]> readCsv(File file) throws IOException {
-        List<String[]> rows = new ArrayList<>();
+    private List<CsvRow> readCsv(File file) throws IOException {
+        List<CsvRow> rows = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String header = br.readLine(); // skip header
             String line;
+            int rowNumber = 2;
             while ((line = br.readLine()) != null) {
-                if (line.trim().isEmpty()) continue;
-                rows.add(line.split(",", -1));
+                if (line.trim().isEmpty()) {
+                    rowNumber++;
+                    continue;
+                }
+                rows.add(new CsvRow(rowNumber, line, line.split(",", -1)));
+                rowNumber++;
             }
         }
         return rows;
+    }
+
+    private String locationKey(String building, String roomNumber) {
+        return (building == null ? "" : building.trim().toLowerCase(Locale.ROOT))
+                + "|"
+                + (roomNumber == null ? "" : roomNumber.trim().toLowerCase(Locale.ROOT));
     }
 
     private Long parseEpoch(String dateStr) {
@@ -139,4 +200,64 @@ public class CsvImporter {
     public interface ProgressCallback {
         void onProgress(int current, int total, String message);
     }
+
+    /** Per-row import failure details for UI feedback/reporting. */
+    public static class ImportFailure {
+        private final int rowNumber;
+        private final String reason;
+        private final String rawRow;
+
+        public ImportFailure(int rowNumber, String reason, String rawRow) {
+            this.rowNumber = rowNumber;
+            this.reason = reason;
+            this.rawRow = rawRow;
+        }
+
+        public int getRowNumber() {
+            return rowNumber;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+
+        public String getRawRow() {
+            return rawRow;
+        }
+    }
+
+    /** Detailed import report with successful events and row-level failures. */
+    public static class ImportReport {
+        private final List<ScheduledEvent> importedEvents;
+        private final List<ImportFailure> failures;
+        private final int totalRows;
+
+        public ImportReport(List<ScheduledEvent> importedEvents, List<ImportFailure> failures, int totalRows) {
+            this.importedEvents = new ArrayList<>(importedEvents);
+            this.failures = new ArrayList<>(failures);
+            this.totalRows = totalRows;
+        }
+
+        public List<ScheduledEvent> getImportedEvents() {
+            return importedEvents;
+        }
+
+        public List<ImportFailure> getFailures() {
+            return failures;
+        }
+
+        public int getTotalRows() {
+            return totalRows;
+        }
+
+        public int getImportedCount() {
+            return importedEvents.size();
+        }
+
+        public int getFailureCount() {
+            return failures.size();
+        }
+    }
+
+    private record CsvRow(int rowNumber, String rawLine, String[] cols) {}
 }

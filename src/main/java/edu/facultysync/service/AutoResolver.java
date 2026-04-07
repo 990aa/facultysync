@@ -6,6 +6,7 @@ import edu.facultysync.model.ConflictResult.Severity;
 
 import java.sql.SQLException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Auto-resolve scheduling conflicts using a backtracking algorithm.
@@ -59,7 +60,16 @@ public class AutoResolver {
      */
     public ResolveResult resolveAll() throws SQLException {
         cache.refresh();
-        List<ConflictResult> conflicts = conflictEngine.analyzeAll();
+        ScheduledEventDAO eventDao = new ScheduledEventDAO(dbManager);
+        LocationDAO locationDao = new LocationDAO(dbManager);
+
+        List<ScheduledEvent> workingEvents = eventDao.findAll();
+        cache.enrichAll(workingEvents);
+        Map<Integer, ScheduledEvent> eventsById = workingEvents.stream()
+            .filter(e -> e.getEventId() != null)
+            .collect(Collectors.toMap(ScheduledEvent::getEventId, e -> e));
+
+        List<ConflictResult> conflicts = conflictEngine.analyze(workingEvents);
 
         // Handle all conflict types that can be resolved via room reassignment.
         List<ConflictResult> actionable = new ArrayList<>();
@@ -75,12 +85,7 @@ public class AutoResolver {
         int unresolvable = 0;
         List<String> actions = new ArrayList<>();
 
-        ScheduledEventDAO eventDao = new ScheduledEventDAO(dbManager);
-        LocationDAO locationDao = new LocationDAO(dbManager);
-
         for (ConflictResult conflict : actionable) {
-            cache.refresh();
-
             ScheduledEvent eventToMove = conflict.getEventB();
             if (eventToMove == null || eventToMove.getEventId() == null
                     || eventToMove.getStartEpoch() == null || eventToMove.getEndEpoch() == null) {
@@ -89,17 +94,26 @@ public class AutoResolver {
                 continue;
             }
 
+            ScheduledEvent mutableEvent = eventsById.get(eventToMove.getEventId());
+            if (mutableEvent == null) {
+                unresolvable++;
+                actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — event missing in working set");
+                continue;
+            }
+
             // Get minimum capacity needed
-            Course course = cache.getCourse(eventToMove.getCourseId());
+            Course course = cache.getCourse(mutableEvent.getCourseId());
             int minCap = (course != null && course.getEnrollmentCount() != null)
                     ? course.getEnrollmentCount() : 0;
 
             // Find available rooms during this time slot
             List<Location> available = locationDao.findAvailable(
-                    eventToMove.getStartEpoch(), eventToMove.getEndEpoch(), minCap);
+                    mutableEvent.getStartEpoch(), mutableEvent.getEndEpoch(), minCap);
 
             if (conflict.getSeverity() == Severity.TIGHT_TRANSITION) {
-                ScheduledEvent first = conflict.getEventA();
+                ScheduledEvent first = conflict.getEventA() != null && conflict.getEventA().getEventId() != null
+                        ? eventsById.get(conflict.getEventA().getEventId())
+                        : conflict.getEventA();
                 Location firstLoc = cache.getLocation(first != null ? first.getLocId() : null);
                 if (firstLoc != null) {
                     available.removeIf(loc -> !Objects.equals(loc.getBuilding(), firstLoc.getBuilding()));
@@ -107,38 +121,37 @@ public class AutoResolver {
             }
 
             // Remove the current room from alternatives
-            if (eventToMove.getLocId() != null) {
-                available.removeIf(loc -> loc.getLocId().equals(eventToMove.getLocId()));
+            if (mutableEvent.getLocId() != null) {
+                available.removeIf(loc -> loc.getLocId().equals(mutableEvent.getLocId()));
             }
 
             if (available.isEmpty()) {
                 unresolvable++;
-                actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — no alternative rooms available");
+                actions.add("UNRESOLVABLE: " + formatEvent(mutableEvent, conflict) + " — no alternative rooms available");
                 continue;
             }
 
             // Try each alternative with backtracking
             boolean wasResolved = false;
-            Integer originalLocId = eventToMove.getLocId();
+            Integer originalLocId = mutableEvent.getLocId();
 
             for (Location alt : available) {
                 // Tentatively reassign
-                eventToMove.setLocId(alt.getLocId());
-                eventDao.update(eventToMove);
+                mutableEvent.setLocId(alt.getLocId());
 
-                // Check if this creates new conflicts
-                cache.refresh();
-                List<ConflictResult> newConflicts = conflictEngine.analyzeAll();
+                // Check if this creates/retains conflicts for the moved event.
+                List<ConflictResult> newConflicts = conflictEngine.analyze(workingEvents);
 
                 // Success only when the moved event is no longer involved in any conflict.
                 boolean eventStillConflicts = newConflicts.stream()
-                        .anyMatch(c -> involvesEvent(c, eventToMove.getEventId()));
+                        .anyMatch(c -> involvesEvent(c, mutableEvent.getEventId()));
 
                 if (!eventStillConflicts) {
+                    eventDao.update(mutableEvent);
                     resolved++;
-                    String courseCode = eventToMove.getCourseCode() != null
-                            ? eventToMove.getCourseCode()
-                            : "Event#" + eventToMove.getEventId();
+                    String courseCode = mutableEvent.getCourseCode() != null
+                            ? mutableEvent.getCourseCode()
+                            : "Event#" + mutableEvent.getEventId();
                     Location oldLoc = cache.getLocation(originalLocId);
                     String oldName = oldLoc != null ? oldLoc.getDisplayName() : "Room#" + originalLocId;
                     actions.add("RESOLVED (" + conflict.getSeverity() + "): "
@@ -148,16 +161,14 @@ public class AutoResolver {
                 }
 
                 // Backtrack
-                eventToMove.setLocId(originalLocId);
-                eventDao.update(eventToMove);
+                mutableEvent.setLocId(originalLocId);
             }
 
             if (!wasResolved) {
                 // Restore original
-                eventToMove.setLocId(originalLocId);
-                eventDao.update(eventToMove);
+                mutableEvent.setLocId(originalLocId);
                 unresolvable++;
-                actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — all alternatives still conflict");
+                actions.add("UNRESOLVABLE: " + formatEvent(mutableEvent, conflict) + " — all alternatives still conflict");
             }
         }
 

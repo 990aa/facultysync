@@ -6,7 +6,7 @@
 
 | | |
 |---|---|
-| **Author** | Abdul Ahad |
+| **Author** | 990aa |
 | **Registration No.** | 245805010 |
 | **Institution** | Manipal Institute of Technology |
 | **Course** | B.Tech Computer Science & Engineering |
@@ -549,5 +549,5 @@ The project validates the feasibility of a lightweight, standalone scheduling to
 
 ---
 
-*Report prepared by Abdul Ahad (Reg. No. 245805010), Manipal Institute of Technology.*
+*Report prepared by 990aa (Reg. No. 245805010), Manipal Institute of Technology.*
 *FacultySync v0.1.0 — February 2026.*

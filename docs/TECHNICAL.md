@@ -1100,7 +1100,7 @@ jpackage \
   --type msi \
   --name FacultySync \
   --app-version {ver} \
-  --vendor "Abdul Ahad" \
+  --vendor "990aa" \
   --icon build/app-icon.ico \
   --input build/install/facultysync/lib \
   --main-jar facultysync-{ver}.jar \
@@ -1355,4 +1355,4 @@ Resolved: 2 | Unresolvable: 1
 ---
 
 *Technical reference document for FacultySync v0.2.0 — February 2026.*
-*Author: Abdul Ahad (Reg. No. 245805010), Manipal Institute of Technology.*
+*Author: 990aa (Reg. No. 245805010), Manipal Institute of Technology.*

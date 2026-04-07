@@ -76,7 +76,7 @@ jobs:
             --type msi `
             --name FacultySync `
             --app-version $ver `
-            --vendor "Abdul Ahad" `
+            --vendor "990aa" `
             --description "University scheduling conflict detection and management" `
             @iconArg `
             --input "$installDir/lib" `
@@ -97,7 +97,7 @@ jobs:
               --type msi `
               --name FacultySync `
               --app-version $ver `
-              --vendor "Abdul Ahad" `
+              --vendor "990aa" `
               --description "University scheduling conflict detection and management" `
               --input "$installDir/lib" `
               --main-jar facultysync-$ver.jar `
