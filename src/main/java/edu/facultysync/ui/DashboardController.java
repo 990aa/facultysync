@@ -455,32 +455,55 @@ public class DashboardController {
         progressBar.setVisible(true);
         statusLabel.setText("Importing...");
 
-        Task<List<ScheduledEvent>> task = new Task<>() {
+        showBusy("Importing CSV...");
+
+        Task<CsvImporter.ImportReport> task = new Task<>() {
             @Override
-            protected List<ScheduledEvent> call() throws Exception {
+            protected CsvImporter.ImportReport call() throws Exception {
                 CsvImporter importer = new CsvImporter(dbManager);
-                return importer.importFile(file, (current, total, msg) -> {
+                CsvImporter.ImportReport report = importer.importFileWithReport(file, (current, total, msg) -> {
                     updateProgress(current, total);
                     updateMessage(msg);
                 });
+                cache.refresh();
+                return report;
             }
         };
         progressBar.progressProperty().bind(task.progressProperty());
         statusLabel.textProperty().bind(task.messageProperty());
 
         task.setOnSucceeded(e -> {
+            hideBusy();
             progressBar.progressProperty().unbind();
             statusLabel.textProperty().unbind();
             progressBar.setVisible(false);
-            try { cache.refresh(); } catch (SQLException ignored) {}
-            refreshData();
-            int count = task.getValue().size();
-            statusLabel.setText("Imported " + count + " events.");
-            ToastNotification.show("Successfully imported " + count + " events from CSV",
-                    ToastNotification.ToastType.SUCCESS);
-            NotificationService.info("CSV Import Complete", count + " events imported successfully.");
+
+            CsvImporter.ImportReport report = task.getValue();
+            refreshAllViews();
+
+            int importedCount = report.getImportedCount();
+            int failureCount = report.getFailureCount();
+            statusLabel.setText("Imported " + importedCount + " events"
+                    + (failureCount > 0 ? ", skipped " + failureCount + " rows." : "."));
+
+            if (failureCount > 0) {
+                ToastNotification.show(
+                        "Imported " + importedCount + " events, skipped " + failureCount + " rows.",
+                        ToastNotification.ToastType.WARNING
+                );
+                NotificationService.warning(
+                        "CSV Import Completed With Skips",
+                        importedCount + " imported, " + failureCount + " rows skipped."
+                );
+                showImportDiagnostics(report);
+            } else {
+                ToastNotification.show("Successfully imported " + importedCount + " events from CSV",
+                        ToastNotification.ToastType.SUCCESS);
+                NotificationService.info("CSV Import Complete", importedCount + " events imported successfully.");
+            }
         });
         task.setOnFailed(e -> {
+            hideBusy();
             progressBar.progressProperty().unbind();
             statusLabel.textProperty().unbind();
             progressBar.setVisible(false);
@@ -488,7 +511,9 @@ public class DashboardController {
             ToastNotification.show("Import failed: " + task.getException().getMessage(),
                     ToastNotification.ToastType.ERROR);
         });
-        new Thread(task, "CSVImport").start();
+        Thread thread = new Thread(task, "CSVImport");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void handleExportSchedule() {
@@ -498,6 +523,8 @@ public class DashboardController {
         fc.setInitialFileName("schedule_export.csv");
         File file = fc.showSaveDialog(stage);
         if (file == null) return;
+
+        showBusy("Exporting schedule...");
 
         Task<Void> task = new Task<>() {
             @Override
@@ -509,15 +536,19 @@ public class DashboardController {
             }
         };
         task.setOnSucceeded(e -> {
+            hideBusy();
             statusLabel.setText("Schedule exported to " + file.getName());
             ToastNotification.show("Schedule exported to " + file.getName(),
                     ToastNotification.ToastType.SUCCESS);
         });
         task.setOnFailed(e -> {
+            hideBusy();
             statusLabel.setText("Export failed: " + task.getException().getMessage());
             ToastNotification.show("Export failed", ToastNotification.ToastType.ERROR);
         });
-        new Thread(task, "ExportSchedule").start();
+        Thread thread = new Thread(task, "ExportSchedule");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void handleExportConflictReport() {
@@ -528,6 +559,8 @@ public class DashboardController {
         File file = fc.showSaveDialog(stage);
         if (file == null) return;
 
+        showBusy("Exporting conflict report...");
+
         Task<Void> task = new Task<>() {
             @Override
             protected Void call() throws Exception {
@@ -537,29 +570,34 @@ public class DashboardController {
             }
         };
         task.setOnSucceeded(e -> {
+            hideBusy();
             statusLabel.setText("Conflict report exported to " + file.getName());
             ToastNotification.show("Conflict report exported", ToastNotification.ToastType.SUCCESS);
         });
         task.setOnFailed(e -> {
+            hideBusy();
             statusLabel.setText("Export failed: " + task.getException().getMessage());
             ToastNotification.show("Export failed", ToastNotification.ToastType.ERROR);
         });
-        new Thread(task, "ExportConflict").start();
+        Thread thread = new Thread(task, "ExportConflict");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void handleAnalyze() {
         progressBar.setVisible(true);
         progressBar.setProgress(-1);
         statusLabel.setText("Analyzing conflicts...");
+        showBusy("Analyzing conflicts...");
 
         Task<List<ConflictResult>> task = new Task<>() {
             @Override
             protected List<ConflictResult> call() throws Exception {
-                cache.refresh();
                 return conflictEngine.analyzeAll();
             }
         };
         task.setOnSucceeded(e -> {
+            hideBusy();
             progressBar.setVisible(false);
             progressBar.setProgress(0);
             List<ConflictResult> conflicts = task.getValue();
@@ -587,18 +625,22 @@ public class DashboardController {
             tabPane.getSelectionModel().select(2);
         });
         task.setOnFailed(e -> {
+            hideBusy();
             progressBar.setVisible(false);
             statusLabel.setText("Analysis failed: " + task.getException().getMessage());
             ToastNotification.show("Analysis failed: " + task.getException().getMessage(),
                     ToastNotification.ToastType.ERROR);
         });
-        new Thread(task, "ConflictAnalysis").start();
+        Thread thread = new Thread(task, "ConflictAnalysis");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void handleAutoResolve() {
         progressBar.setVisible(true);
         progressBar.setProgress(-1);
         statusLabel.setText("Auto-resolving conflicts...");
+        showBusy("Auto-resolving conflicts...");
 
         Task<AutoResolver.ResolveResult> task = new Task<>() {
             @Override
@@ -608,6 +650,7 @@ public class DashboardController {
             }
         };
         task.setOnSucceeded(e -> {
+            hideBusy();
             progressBar.setVisible(false);
             progressBar.setProgress(0);
             AutoResolver.ResolveResult result = task.getValue();
@@ -644,15 +687,18 @@ public class DashboardController {
                         ToastNotification.ToastType.WARNING);
             }
 
-            refreshData();
+            refreshAllViews();
             handleAnalyze();
         });
         task.setOnFailed(e -> {
+            hideBusy();
             progressBar.setVisible(false);
             statusLabel.setText("Auto-resolve failed: " + task.getException().getMessage());
             ToastNotification.show("Auto-resolve failed", ToastNotification.ToastType.ERROR);
         });
-        new Thread(task, "AutoResolve").start();
+        Thread thread = new Thread(task, "AutoResolve");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     private void handleReassign(ConflictResult conflict) {
@@ -671,18 +717,32 @@ public class DashboardController {
 
         dialog.showAndWait().ifPresent(newLoc -> {
             ScheduledEvent eventB = conflict.getEventB();
-            eventB.setLocId(newLoc.getLocId());
-            try {
-                new ScheduledEventDAO(dbManager).update(eventB);
-                cache.refresh();
-                refreshData();
-                handleAnalyze();
-                ToastNotification.show("Reassigned to " + newLoc.getDisplayName(),
-                        ToastNotification.ToastType.SUCCESS);
-            } catch (SQLException ex) {
-                ToastNotification.show("Failed to reassign: " + ex.getMessage(),
-                        ToastNotification.ToastType.ERROR);
+            if (eventB == null || eventB.getEventId() == null) {
+                ToastNotification.show("Selected conflict event is invalid.", ToastNotification.ToastType.ERROR);
+                return;
             }
+
+            runDbTask(
+                    "ReassignEvent",
+                    "Reassigning room...",
+                    () -> {
+                        ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);
+                        ScheduledEvent latest = dao.findById(eventB.getEventId());
+                        if (latest == null) {
+                            throw new SQLException("Event not found.");
+                        }
+                        latest.setLocId(newLoc.getLocId());
+                        dao.update(latest);
+                        cache.refresh();
+                        return latest;
+                    },
+                    updated -> {
+                        refreshAllViews();
+                        handleAnalyze();
+                        ToastNotification.show("Reassigned to " + newLoc.getDisplayName(),
+                                ToastNotification.ToastType.SUCCESS);
+                    }
+            );
         });
     }
 
@@ -694,16 +754,23 @@ public class DashboardController {
         dialog.setHeaderText("Enter department name:");
         dialog.setContentText("Name:");
         dialog.showAndWait().ifPresent(name -> {
-            if (name.trim().isEmpty()) return;
-            try {
-                new DepartmentDAO(dbManager).insert(new Department(null, name.trim()));
-                cache.refresh();
-                departmentCombo.getItems().setAll(cache.getAllDepartments().values());
-                ToastNotification.show("Department '" + name.trim() + "' added",
-                        ToastNotification.ToastType.SUCCESS);
-            } catch (SQLException ex) {
-                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
-            }
+            String trimmed = name.trim();
+            if (trimmed.isEmpty()) return;
+
+            runDbTask(
+                    "AddDepartment",
+                    "Adding department...",
+                    () -> {
+                        Department created = new DepartmentDAO(dbManager).insert(new Department(null, trimmed));
+                        cache.refresh();
+                        return created;
+                    },
+                    created -> {
+                        refreshAllViews();
+                        ToastNotification.show("Department '" + created.getName() + "' added",
+                                ToastNotification.ToastType.SUCCESS);
+                    }
+            );
         });
     }
 
@@ -740,14 +807,20 @@ public class DashboardController {
             return null;
         });
         dialog.showAndWait().ifPresent(prof -> {
-            try {
-                new ProfessorDAO(dbManager).insert(prof);
-                cache.refresh();
-                ToastNotification.show("Professor '" + prof.getName() + "' added",
-                        ToastNotification.ToastType.SUCCESS);
-            } catch (SQLException ex) {
-                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
-            }
+            runDbTask(
+                    "AddProfessor",
+                    "Adding professor...",
+                    () -> {
+                        Professor created = new ProfessorDAO(dbManager).insert(prof);
+                        cache.refresh();
+                        return created;
+                    },
+                    created -> {
+                        refreshAllViews();
+                        ToastNotification.show("Professor '" + created.getName() + "' added",
+                                ToastNotification.ToastType.SUCCESS);
+                    }
+            );
         });
     }
 
