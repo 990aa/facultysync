@@ -28,6 +28,8 @@ import java.io.File;
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.function.Consumer;
 
 /**
  * Main dashboard UI controller for FacultySync.
@@ -53,6 +55,9 @@ public class DashboardController {
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label statusLabel = new Label("Ready");
     private final Label conflictSummaryLabel = new Label();
+    private final StackPane busyOverlay = new StackPane();
+    private final Label busyOverlayLabel = new Label("Loading...");
+    private int busyDepth = 0;
 
     // Sub-views
     private HomePage homePage;

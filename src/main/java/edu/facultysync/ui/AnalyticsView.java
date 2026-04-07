@@ -46,8 +46,12 @@ public class AnalyticsView {
     }
 
     public void refresh() {
+        refresh(null);
+    }
+
+    public void refresh(Runnable onComplete) {
         chartsContainer.getChildren().clear();
-        populateCharts();
+        populateCharts(onComplete);
     }
 
     private VBox buildView() {
@@ -76,12 +80,12 @@ public class AnalyticsView {
         container.getChildren().addAll(header, scroll);
 
         // Load charts on background thread
-        populateCharts();
+        populateCharts(null);
 
         return container;
     }
 
-    private void populateCharts() {
+    private void populateCharts(Runnable onComplete) {
         Task<ChartData> task = new Task<>() {
             @Override
             protected ChartData call() throws Exception {
@@ -93,12 +97,18 @@ public class AnalyticsView {
         task.setOnSucceeded(e -> {
             ChartData data = task.getValue();
             buildChartUI(data);
+            if (onComplete != null) {
+                onComplete.run();
+            }
         });
 
         task.setOnFailed(e -> {
             Label errorLabel = new Label("Failed to load analytics: " + task.getException().getMessage());
             errorLabel.setStyle("-fx-text-fill: #e74c3c;");
             chartsContainer.getChildren().add(errorLabel);
+            if (onComplete != null) {
+                onComplete.run();
+            }
         });
 
         new Thread(task, "AnalyticsLoad").start();

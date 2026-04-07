@@ -48,6 +48,10 @@ public class HomePage {
 
     /** Refresh statistics when tab is selected. */
     public void refresh() {
+        refresh(null);
+    }
+
+    public void refresh(Runnable onComplete) {
         showLoadingState();
 
         Task<HomeSnapshot> task = new Task<>() {
@@ -75,8 +79,16 @@ public class HomePage {
         task.setOnSucceeded(e -> {
             VBox newContent = buildContent(task.getValue());
             content.getChildren().setAll(newContent.getChildren());
+            if (onComplete != null) {
+                onComplete.run();
+            }
         });
-        task.setOnFailed(e -> showErrorState(task.getException()));
+        task.setOnFailed(e -> {
+            showErrorState(task.getException());
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        });
 
         Thread thread = new Thread(task, "HomePageRefresh");
         thread.setDaemon(true);

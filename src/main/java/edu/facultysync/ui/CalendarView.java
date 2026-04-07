@@ -93,6 +93,10 @@ public class CalendarView {
     }
 
     public void refresh() {
+        refresh(null);
+    }
+
+    public void refresh(Runnable onComplete) {
         weekLabel.setText("Loading week...");
 
         Task<CalendarSnapshot> task = new Task<>() {
@@ -138,6 +142,9 @@ public class CalendarView {
         task.setOnSucceeded(e -> {
             CalendarSnapshot snapshot = task.getValue();
             if (snapshot.weekStartEpoch != currentWeekStart.getTimeInMillis()) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
                 return;
             }
 
@@ -146,6 +153,9 @@ public class CalendarView {
             conflictEventIds = snapshot.conflictEventIds;
             weekLabel.setText(snapshot.weekLabelText);
             buildCalendarContent(snapshot.events);
+            if (onComplete != null) {
+                onComplete.run();
+            }
         });
 
         task.setOnFailed(e -> {
@@ -157,6 +167,9 @@ public class CalendarView {
                     + (task.getException() != null ? task.getException().getMessage() : "Unknown error"));
             error.getStyleClass().add("empty-state-label");
             calendarGrid.add(error, 0, 0);
+            if (onComplete != null) {
+                onComplete.run();
+            }
         });
 
         Thread thread = new Thread(task, "CalendarRefresh");
