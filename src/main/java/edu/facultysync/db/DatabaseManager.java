@@ -4,9 +4,10 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.UUID;
 
 /**
- * Manages a single SQLite connection with enterprise-grade PRAGMAs.
+ * Manages SQLite connections with enterprise-grade PRAGMAs.
  * <ul>
  *   <li>PRAGMA foreign_keys = ON – enforces relational integrity</li>
  *   <li>PRAGMA journal_mode = WAL – concurrent reads during writes</li>
@@ -15,25 +16,30 @@ import java.sql.Statement;
 public class DatabaseManager {
 
     private static final String DEFAULT_URL = "jdbc:sqlite:facultysync.db";
-    private final String url;
-    private Connection connection;
+     private final String url;
+     private final boolean sharedMemory;
+     private Connection sharedMemoryKeepAlive;
 
     public DatabaseManager() {
         this(DEFAULT_URL);
     }
 
-    public DatabaseManager(String url) {
-        this.url = url;
+    public DatabaseManager(String inputUrl) {
+        this.sharedMemory = "jdbc:sqlite::memory:".equals(inputUrl);
+        if (sharedMemory) {
+            String dbName = "facultysync_mem_" + UUID.randomUUID();
+            this.url = "jdbc:sqlite:file:" + dbName + "?mode=memory&cache=shared";
+        } else {
+            this.url = inputUrl;
+        }
     }
 
     /**
-     * Opens (or returns existing) connection with PRAGMAs applied.
+     * Opens a new connection with PRAGMAs applied.
      */
-    public synchronized Connection getConnection() throws SQLException {
-        if (connection == null || connection.isClosed()) {
-            connection = DriverManager.getConnection(url);
-            applyPragmas(connection);
-        }
+    public Connection getConnection() throws SQLException {
+        Connection connection = DriverManager.getConnection(url);
+        applyPragmas(connection);
         return connection;
     }
 
@@ -41,14 +47,27 @@ public class DatabaseManager {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("PRAGMA foreign_keys = ON");
             stmt.execute("PRAGMA journal_mode = WAL");
+            stmt.execute("PRAGMA busy_timeout = 5000");
         }
+    }
+
+    private synchronized Connection getSchemaConnection() throws SQLException {
+        if (!sharedMemory) {
+            return getConnection();
+        }
+
+        if (sharedMemoryKeepAlive == null || sharedMemoryKeepAlive.isClosed()) {
+            sharedMemoryKeepAlive = DriverManager.getConnection(url);
+            applyPragmas(sharedMemoryKeepAlive);
+        }
+        return sharedMemoryKeepAlive;
     }
 
     /**
      * Initializes the full schema (idempotent – uses IF NOT EXISTS).
      */
     public void initializeSchema() throws SQLException {
-        Connection conn = getConnection();
+        Connection conn = getSchemaConnection();
         try (Statement stmt = conn.createStatement()) {
 
             stmt.execute("CREATE TABLE IF NOT EXISTS departments ("
@@ -97,9 +116,13 @@ public class DatabaseManager {
      * Closes the connection.
      */
     public synchronized void close() {
-        if (connection != null) {
-            try { connection.close(); } catch (SQLException ignored) {}
-            connection = null;
+        if (sharedMemoryKeepAlive != null) {
+            try {
+                sharedMemoryKeepAlive.close();
+            } catch (SQLException ignored) {
+                // no-op
+            }
+            sharedMemoryKeepAlive = null;
         }
     }
 }

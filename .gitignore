@@ -27,4 +27,3 @@ local.properties
 *.db
 
 repomix.config.json
-gradle
