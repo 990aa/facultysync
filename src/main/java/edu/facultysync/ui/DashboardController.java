@@ -859,14 +859,20 @@ public class DashboardController {
             return null;
         });
         dialog.showAndWait().ifPresent(course -> {
-            try {
-                new CourseDAO(dbManager).insert(course);
-                cache.refresh();
-                ToastNotification.show("Course '" + course.getCourseCode() + "' added",
-                        ToastNotification.ToastType.SUCCESS);
-            } catch (SQLException ex) {
-                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
-            }
+            runDbTask(
+                    "AddCourse",
+                    "Adding course...",
+                    () -> {
+                        Course created = new CourseDAO(dbManager).insert(course);
+                        cache.refresh();
+                        return created;
+                    },
+                    created -> {
+                        refreshAllViews();
+                        ToastNotification.show("Course '" + created.getCourseCode() + "' added",
+                                ToastNotification.ToastType.SUCCESS);
+                    }
+            );
         });
     }
 
@@ -902,14 +908,20 @@ public class DashboardController {
             return null;
         });
         dialog.showAndWait().ifPresent(loc -> {
-            try {
-                new LocationDAO(dbManager).insert(loc);
-                cache.refresh();
-                ToastNotification.show("Location '" + loc.getDisplayName() + "' added",
-                        ToastNotification.ToastType.SUCCESS);
-            } catch (SQLException ex) {
-                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
-            }
+            runDbTask(
+                    "AddLocation",
+                    "Adding location...",
+                    () -> {
+                        Location created = new LocationDAO(dbManager).insert(loc);
+                        cache.refresh();
+                        return created;
+                    },
+                    created -> {
+                        refreshAllViews();
+                        ToastNotification.show("Location '" + created.getDisplayName() + "' added",
+                                ToastNotification.ToastType.SUCCESS);
+                    }
+            );
         });
     }
 
@@ -961,15 +973,20 @@ public class DashboardController {
             } catch (Exception ex) { return null; }
         });
         dialog.showAndWait().ifPresent(event -> {
-            try {
-                new ScheduledEventDAO(dbManager).insert(event);
-                cache.refresh();
-                refreshData();
-                ToastNotification.show("Event added successfully",
-                        ToastNotification.ToastType.SUCCESS);
-            } catch (SQLException ex) {
-                ToastNotification.show("Error: " + ex.getMessage(), ToastNotification.ToastType.ERROR);
-            }
+            runDbTask(
+                    "AddEvent",
+                    "Adding event...",
+                    () -> {
+                        ScheduledEvent created = new ScheduledEventDAO(dbManager).insert(event);
+                        cache.refresh();
+                        return created;
+                    },
+                    created -> {
+                        refreshAllViews();
+                        ToastNotification.show("Event added successfully",
+                                ToastNotification.ToastType.SUCCESS);
+                    }
+            );
         });
     }
 }
