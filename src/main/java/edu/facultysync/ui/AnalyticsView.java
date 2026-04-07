@@ -34,6 +34,7 @@ public class AnalyticsView {
 
     // Chart containers for refresh
     private VBox chartsContainer;
+    private Task<ChartData> activeLoadTask;
 
     public AnalyticsView(DatabaseManager dbManager, DataCache cache) {
         this.dbManager = dbManager;
@@ -86,15 +87,30 @@ public class AnalyticsView {
     }
 
     private void populateCharts(Runnable onComplete) {
+        cancelRefresh();
+
         Task<ChartData> task = new Task<>() {
             @Override
             protected ChartData call() throws Exception {
+                if (isCancelled()) {
+                    return null;
+                }
                 cache.refresh();
+                if (isCancelled()) {
+                    return null;
+                }
                 return gatherData();
             }
         };
+        activeLoadTask = task;
 
         task.setOnSucceeded(e -> {
+            if (task != activeLoadTask || task.isCancelled() || task.getValue() == null) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
             ChartData data = task.getValue();
             buildChartUI(data);
             if (onComplete != null) {
@@ -103,6 +119,12 @@ public class AnalyticsView {
         });
 
         task.setOnFailed(e -> {
+            if (task.isCancelled()) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
             Label errorLabel = new Label("Failed to load analytics: " + task.getException().getMessage());
             errorLabel.setStyle("-fx-text-fill: #e74c3c;");
             chartsContainer.getChildren().add(errorLabel);
@@ -111,7 +133,21 @@ public class AnalyticsView {
             }
         });
 
-        new Thread(task, "AnalyticsLoad").start();
+        task.setOnCancelled(e -> {
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        });
+
+        Thread thread = new Thread(task, "AnalyticsLoad");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    public void cancelRefresh() {
+        if (activeLoadTask != null && activeLoadTask.isRunning()) {
+            activeLoadTask.cancel();
+        }
     }
 
     private void buildChartUI(ChartData data) {

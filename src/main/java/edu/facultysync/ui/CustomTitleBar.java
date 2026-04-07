@@ -127,16 +127,12 @@ public class CustomTitleBar extends HBox {
             double x = event.getX(), y = event.getY();
             double w = stage.getScene().getWidth(), h = stage.getScene().getHeight();
 
-            boolean l = x < RESIZE_MARGIN, r = x > w - RESIZE_MARGIN;
-            boolean t = y < RESIZE_MARGIN, b = y > h - RESIZE_MARGIN;
+            boolean r = x > w - RESIZE_MARGIN;
+            boolean b = y > h - RESIZE_MARGIN;
 
-            if (l && t) stage.getScene().setCursor(Cursor.NW_RESIZE);
-            else if (r && t) stage.getScene().setCursor(Cursor.NE_RESIZE);
-            else if (l && b) stage.getScene().setCursor(Cursor.SW_RESIZE);
-            else if (r && b) stage.getScene().setCursor(Cursor.SE_RESIZE);
-            else if (l) stage.getScene().setCursor(Cursor.W_RESIZE);
+            // Restrict resizing to right/bottom edges to avoid top/left jitter on undecorated windows.
+            if (r && b) stage.getScene().setCursor(Cursor.SE_RESIZE);
             else if (r) stage.getScene().setCursor(Cursor.E_RESIZE);
-            else if (t) stage.getScene().setCursor(Cursor.N_RESIZE);
             else if (b) stage.getScene().setCursor(Cursor.S_RESIZE);
             else stage.getScene().setCursor(Cursor.DEFAULT);
         });
@@ -158,25 +154,11 @@ public class CustomTitleBar extends HBox {
             double dx = event.getScreenX() - dragStart[0];
             double dy = event.getScreenY() - dragStart[1];
 
-            if (cursor == Cursor.E_RESIZE || cursor == Cursor.NE_RESIZE || cursor == Cursor.SE_RESIZE) {
+            if (cursor == Cursor.E_RESIZE || cursor == Cursor.SE_RESIZE) {
                 stage.setWidth(Math.max(stage.getMinWidth(), dragStart[2] + dx));
             }
-            if (cursor == Cursor.S_RESIZE || cursor == Cursor.SE_RESIZE || cursor == Cursor.SW_RESIZE) {
+            if (cursor == Cursor.S_RESIZE || cursor == Cursor.SE_RESIZE) {
                 stage.setHeight(Math.max(stage.getMinHeight(), dragStart[3] + dy));
-            }
-            if (cursor == Cursor.W_RESIZE || cursor == Cursor.NW_RESIZE || cursor == Cursor.SW_RESIZE) {
-                double newW = Math.max(stage.getMinWidth(), dragStart[2] - dx);
-                if (newW > stage.getMinWidth()) {
-                    stage.setWidth(newW);
-                    stage.setX(event.getScreenX());
-                }
-            }
-            if (cursor == Cursor.N_RESIZE || cursor == Cursor.NW_RESIZE || cursor == Cursor.NE_RESIZE) {
-                double newH = Math.max(stage.getMinHeight(), dragStart[3] - dy);
-                if (newH > stage.getMinHeight()) {
-                    stage.setHeight(newH);
-                    stage.setY(event.getScreenY());
-                }
             }
         });
     }
@@ -195,11 +177,19 @@ public class CustomTitleBar extends HBox {
             prevW = stage.getWidth();
             prevH = stage.getHeight();
 
-            var screen = javafx.stage.Screen.getPrimary().getVisualBounds();
-            stage.setX(screen.getMinX());
-            stage.setY(screen.getMinY());
-            stage.setWidth(screen.getWidth());
-            stage.setHeight(screen.getHeight());
+            var screens = javafx.stage.Screen.getScreensForRectangle(
+                    stage.getX(),
+                    stage.getY(),
+                    Math.max(1, stage.getWidth()),
+                    Math.max(1, stage.getHeight())
+            );
+            var targetScreen = screens.isEmpty() ? javafx.stage.Screen.getPrimary() : screens.get(0);
+            var bounds = targetScreen.getVisualBounds();
+
+            stage.setX(bounds.getMinX());
+            stage.setY(bounds.getMinY());
+            stage.setWidth(bounds.getWidth());
+            stage.setHeight(bounds.getHeight());
             maximizeBtn.setText("\u25A3");
             maximized = true;
         }

@@ -28,6 +28,7 @@ public class HomePage {
     private final DataCache cache;
     private final TabPane tabPane;
     private final VBox content;
+    private Task<HomeSnapshot> activeRefreshTask;
 
     public HomePage(DatabaseManager dbManager, DataCache cache, TabPane tabPane) {
         this.dbManager = dbManager;
@@ -48,13 +49,23 @@ public class HomePage {
     }
 
     public void refresh(Runnable onComplete) {
+        cancelRefresh();
         showLoadingState();
 
         Task<HomeSnapshot> task = new Task<>() {
             @Override
             protected HomeSnapshot call() throws Exception {
+                if (isCancelled()) {
+                    return null;
+                }
                 cache.refresh();
+                if (isCancelled()) {
+                    return null;
+                }
                 List<ScheduledEvent> events = new ScheduledEventDAO(dbManager).findAll();
+                if (isCancelled()) {
+                    return null;
+                }
                 cache.enrichAll(events);
 
                 HomeSnapshot snapshot = new HomeSnapshot();
@@ -71,8 +82,15 @@ public class HomePage {
                 return snapshot;
             }
         };
+        activeRefreshTask = task;
 
         task.setOnSucceeded(e -> {
+            if (task != activeRefreshTask || task.isCancelled() || task.getValue() == null) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
             VBox newContent = buildContent(task.getValue());
             content.getChildren().setAll(newContent.getChildren());
             if (onComplete != null) {
@@ -80,7 +98,18 @@ public class HomePage {
             }
         });
         task.setOnFailed(e -> {
+            if (task.isCancelled()) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
             showErrorState(task.getException());
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        });
+        task.setOnCancelled(e -> {
             if (onComplete != null) {
                 onComplete.run();
             }
@@ -89,6 +118,12 @@ public class HomePage {
         Thread thread = new Thread(task, "HomePageRefresh");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    public void cancelRefresh() {
+        if (activeRefreshTask != null && activeRefreshTask.isRunning()) {
+            activeRefreshTask.cancel();
+        }
     }
 
     private void showLoadingState() {

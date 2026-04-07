@@ -18,6 +18,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
+import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
 import javafx.scene.input.ClipboardContent;
@@ -81,6 +82,7 @@ public class CalendarView {
     private Set<Integer> conflictEventIds = new HashSet<>();
     private boolean suppressWeekPickerEvent;
     private Map<Integer, EventPlacement> placementsByEventId = new HashMap<>();
+    private Task<CalendarSnapshot> activeRefreshTask;
 
     public CalendarView(DatabaseManager dbManager, DataCache cache) {
         this.dbManager = dbManager;
@@ -101,17 +103,24 @@ public class CalendarView {
     }
 
     public void refresh(Runnable onComplete) {
+        cancelRefresh();
         weekLabel.setText("Loading week...");
 
         Task<CalendarSnapshot> task = new Task<>() {
             @Override
             protected CalendarSnapshot call() throws Exception {
+                if (isCancelled()) {
+                    return null;
+                }
                 Calendar weekStart = (Calendar) currentWeekStart.clone();
                 Calendar weekEnd = (Calendar) weekStart.clone();
                 weekEnd.add(Calendar.DAY_OF_YEAR, 7);
 
                 List<ScheduledEvent> events = new ScheduledEventDAO(dbManager)
                         .findByTimeRange(weekStart.getTimeInMillis(), weekEnd.getTimeInMillis());
+                if (isCancelled()) {
+                    return null;
+                }
                 cache.enrichAll(events);
 
                 List<ConflictResult> conflicts = conflictEngine.analyze(events);
@@ -142,8 +151,15 @@ public class CalendarView {
                 );
             }
         };
+        activeRefreshTask = task;
 
         task.setOnSucceeded(e -> {
+            if (task != activeRefreshTask || task.isCancelled() || task.getValue() == null) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
             CalendarSnapshot snapshot = task.getValue();
             if (snapshot.weekStartEpoch != currentWeekStart.getTimeInMillis()) {
                 if (onComplete != null) {
@@ -165,6 +181,12 @@ public class CalendarView {
         });
 
         task.setOnFailed(e -> {
+            if (task.isCancelled()) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
             weekLabel.setText("Unable to load week");
             calendarGrid.getChildren().clear();
             calendarGrid.getColumnConstraints().clear();
@@ -178,9 +200,21 @@ public class CalendarView {
             }
         });
 
+        task.setOnCancelled(e -> {
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        });
+
         Thread thread = new Thread(task, "CalendarRefresh");
         thread.setDaemon(true);
         thread.start();
+    }
+
+    public void cancelRefresh() {
+        if (activeRefreshTask != null && activeRefreshTask.isRunning()) {
+            activeRefreshTask.cancel();
+        }
     }
 
     private VBox buildView() {
@@ -407,17 +441,33 @@ public class CalendarView {
 
         Label courseLbl = new Label(courseText);
         courseLbl.getStyleClass().add("cal-event-title");
+        courseLbl.setWrapText(false);
+        courseLbl.setTextOverrun(OverrunStyle.ELLIPSIS);
+        courseLbl.setMinWidth(0);
+        courseLbl.setMaxWidth(Double.MAX_VALUE);
 
         Label timeLbl = new Label(timeText);
         timeLbl.getStyleClass().add("cal-event-time");
+        timeLbl.setWrapText(false);
+        timeLbl.setMinWidth(0);
+        timeLbl.setMaxWidth(Double.MAX_VALUE);
 
         Label locLbl = new Label(locText);
         locLbl.getStyleClass().add("cal-event-loc");
+        locLbl.setWrapText(false);
+        locLbl.setTextOverrun(OverrunStyle.ELLIPSIS);
+        locLbl.setMinWidth(0);
+        locLbl.setMaxWidth(Double.MAX_VALUE);
 
         VBox block = new VBox(2, courseLbl, timeLbl, locLbl);
+        block.setFillWidth(true);
         block.setPadding(new Insets(4, 6, 4, 6));
         block.getStyleClass().add("cal-event-block");
         block.setCursor(Cursor.HAND);
+
+        courseLbl.maxWidthProperty().bind(block.widthProperty().subtract(12));
+        timeLbl.maxWidthProperty().bind(block.widthProperty().subtract(12));
+        locLbl.maxWidthProperty().bind(block.widthProperty().subtract(12));
 
         boolean isConflict = ev.getEventId() != null && conflictEventIds.contains(ev.getEventId());
         if (isConflict) {
