@@ -38,8 +38,10 @@ class CustomTitleBarTest {
 
         CountDownLatch startupLatch = new CountDownLatch(1);
         try {
+            Platform.setImplicitExit(false);
             Platform.startup(startupLatch::countDown);
         } catch (IllegalStateException e) {
+            Platform.setImplicitExit(false);
             startupLatch.countDown(); // already started
         }
         assertTrue(startupLatch.await(5, TimeUnit.SECONDS), "JavaFX platform should start");

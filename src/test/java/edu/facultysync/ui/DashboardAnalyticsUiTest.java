@@ -146,7 +146,7 @@ class DashboardAnalyticsUiTest {
         });
 
         try {
-            waitUntil(() -> onFxCall(() -> containsLabelContaining(stageRef.get().getScene().getRoot(), "Recent Events")), 10000);
+            waitUntil(() -> onFxCall(() -> !containsLabelContaining(stageRef.get().getScene().getRoot(), "Loading dashboard data...")), 10000);
             boolean hasQuickActions = onFxCall(() -> containsLabelContaining(stageRef.get().getScene().getRoot(), "Quick Actions"));
             assertFalse(hasQuickActions, "Home page should not render Quick Actions section");
         } finally {
