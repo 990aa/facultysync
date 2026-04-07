@@ -5,22 +5,37 @@ package edu.facultysync.model;
  */
 public record Department(Integer deptId, String name) {
 
+    /**
+     * Creates an empty department instance used by legacy code paths and serializers.
+     */
     public Department() {
         this(null, null);
     }
 
+    /**
+     * Compatibility getter matching legacy POJO API.
+     */
     public Integer getDeptId() {
         return deptId;
     }
 
+    /**
+     * Compatibility getter matching legacy POJO API.
+     */
     public String getName() {
         return name;
     }
 
+    /**
+     * Returns a copy with the supplied department identifier.
+     */
     public Department withDeptId(Integer newDeptId) {
         return new Department(newDeptId, name);
     }
 
+    /**
+     * Returns a copy with the supplied department name.
+     */
     public Department withName(String newName) {
         return new Department(deptId, newName);
     }

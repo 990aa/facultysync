@@ -26,18 +26,32 @@ public class ConflictView {
     private final TableView<ConflictResult> conflictTable = new TableView<>();
     private final Label conflictSummaryLabel = new Label();
 
+    /**
+     * Creates a conflict view with a callback used for manual reassignment actions.
+     *
+     * @param onReassign callback invoked when a conflict row is double-clicked
+     */
     public ConflictView(Consumer<ConflictResult> onReassign) {
         this.root = buildView(onReassign);
     }
 
+    /**
+     * Returns the root JavaFX node to be embedded in the Conflicts tab.
+     */
     public VBox getView() {
         return root;
     }
 
+    /**
+     * Returns the conflict table for data refreshes and interaction wiring.
+     */
     public TableView<ConflictResult> getConflictTable() {
         return conflictTable;
     }
 
+    /**
+     * Returns the summary label that reports conflict counts and status.
+     */
     public Label getConflictSummaryLabel() {
         return conflictSummaryLabel;
     }

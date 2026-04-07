@@ -23,14 +23,26 @@ public class ScheduleView {
     private final VBox root;
     private final TableView<ScheduledEvent> eventTable = new TableView<>();
 
+    /**
+     * Creates a schedule view with callbacks for row-level edit/delete actions.
+     *
+     * @param onEditEvent callback invoked when the user requests event editing
+     * @param onDeleteEvent callback invoked when the user requests event deletion
+     */
     public ScheduleView(Consumer<ScheduledEvent> onEditEvent, Consumer<ScheduledEvent> onDeleteEvent) {
         this.root = buildView(onEditEvent, onDeleteEvent);
     }
 
+    /**
+     * Returns the root JavaFX node to be embedded in the Schedule tab.
+     */
     public VBox getView() {
         return root;
     }
 
+    /**
+     * Returns the backing event table for data refresh and selection operations.
+     */
     public TableView<ScheduledEvent> getEventTable() {
         return eventTable;
     }
