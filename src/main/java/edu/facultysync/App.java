@@ -105,7 +105,9 @@ public class App extends Application {
     @Override
     public void stop() {
         NotificationService.shutdown();
-        if (dbManager != null) dbManager.close();
+        if (dbManager != null) {
+            dbManager.close();
+        }
     }
 
     public static void main(String[] args) {
