@@ -1,5 +1,8 @@
 package edu.facultysync.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.awt.*;
 import java.awt.TrayIcon.MessageType;
 
@@ -10,6 +13,7 @@ import java.awt.TrayIcon.MessageType;
  */
 public class NotificationService {
 
+    private static final Logger LOG = LoggerFactory.getLogger(NotificationService.class);
     private static TrayIcon trayIcon;
     private static boolean available = false;
 
@@ -18,7 +22,7 @@ public class NotificationService {
      */
     public static void initialize() {
         if (!SystemTray.isSupported()) {
-            System.err.println("System tray not supported – native notifications disabled.");
+            LOG.warn("System tray not supported; native notifications disabled.");
             return;
         }
         try {
@@ -30,8 +34,9 @@ public class NotificationService {
             trayIcon.setImageAutoSize(true);
             tray.add(trayIcon);
             available = true;
+            LOG.info("System tray notifications initialized.");
         } catch (AWTException e) {
-            System.err.println("Could not add system tray icon: " + e.getMessage());
+            LOG.error("Could not add system tray icon", e);
         }
     }
 

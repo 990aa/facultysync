@@ -4,6 +4,8 @@ import edu.facultysync.db.*;
 import edu.facultysync.model.*;
 import edu.facultysync.service.*;
 import edu.facultysync.util.TimePolicy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -17,90 +19,90 @@ import java.util.List;
  */
 public class SeedAndResolve {
 
+    private static final Logger LOG = LoggerFactory.getLogger(SeedAndResolve.class);
+
     public static void main(String[] args) {
-        System.out.println("=== FacultySync – Seed & Resolve Script ===\n");
+        LOG.info("=== FacultySync - Seed & Resolve Script ===");
 
         DatabaseManager dbManager = new DatabaseManager();
         try {
             // 1. Initialize schema
             dbManager.initializeSchema();
-            System.out.println("[OK] Database schema initialized.");
+            LOG.info("[OK] Database schema initialized.");
 
             // 2. Seed demo data
             SeedData.seedIfEmpty(dbManager);
             SeedData.ensureIntentionalConflicts(dbManager);
-            System.out.println("[OK] Demo data seeded.\n");
+            LOG.info("[OK] Demo data seeded.");
 
             // 3. Print summary of seeded data
             DataCache cache = new DataCache(dbManager);
             printDataSummary(dbManager, cache);
 
             // 4. Run conflict analysis
-            System.out.println("\n--- Conflict Analysis ---");
+            LOG.info("--- Conflict Analysis ---");
             ConflictEngine engine = new ConflictEngine(dbManager, cache);
             List<ConflictResult> conflicts = engine.analyzeAll();
 
             if (conflicts.isEmpty()) {
-                System.out.println("[OK] No conflicts detected.");
+                LOG.info("[OK] No conflicts detected.");
             } else {
-                System.out.println("[!] " + conflicts.size() + " conflicts detected:\n");
+                LOG.warn("[!] {} conflicts detected", conflicts.size());
                 long hard = conflicts.stream()
                         .filter(c -> c.getSeverity() == ConflictResult.Severity.HARD_OVERLAP).count();
                 long tight = conflicts.stream()
                         .filter(c -> c.getSeverity() == ConflictResult.Severity.TIGHT_TRANSITION).count();
-                System.out.println("    Hard Overlaps:      " + hard);
-                System.out.println("    Tight Transitions:  " + tight);
-                System.out.println();
+                LOG.info("    Hard Overlaps:      {}", hard);
+                LOG.info("    Tight Transitions:  {}", tight);
 
                 for (int i = 0; i < conflicts.size(); i++) {
                     ConflictResult c = conflicts.get(i);
-                    System.out.printf("  %d. [%s] %s%n", i + 1, c.getSeverity(), c.getDescription());
+                    LOG.info("  {}. [{}] {}", i + 1, c.getSeverity(), c.getDescription());
                     if (c.getAvailableAlternatives() != null && !c.getAvailableAlternatives().isEmpty()) {
-                        System.out.print("     Alternatives: ");
+                        StringBuilder alternatives = new StringBuilder();
                         for (Location alt : c.getAvailableAlternatives()) {
-                            System.out.print(alt.getDisplayName() + "; ");
+                            alternatives.append(alt.getDisplayName()).append("; ");
                         }
-                        System.out.println();
+                        LOG.info("     Alternatives: {}", alternatives);
                     }
                 }
             }
 
             // 5. Run auto-resolve
-            System.out.println("\n--- Auto-Resolve ---");
+            LOG.info("--- Auto-Resolve ---");
             AutoResolver resolver = new AutoResolver(dbManager, cache);
             AutoResolver.ResolveResult result = resolver.resolveAll();
 
-            System.out.println("Total conflicts:  " + result.getTotalConflicts());
-            System.out.println("Resolved:         " + result.getResolved());
-            System.out.println("Unresolvable:     " + result.getUnresolvable());
+            LOG.info("Total conflicts:  {}", result.getTotalConflicts());
+            LOG.info("Resolved:         {}", result.getResolved());
+            LOG.info("Unresolvable:     {}", result.getUnresolvable());
 
             if (!result.getActions().isEmpty()) {
-                System.out.println("\nActions taken:");
+                LOG.info("Actions taken:");
                 for (String action : result.getActions()) {
-                    System.out.println("  - " + action);
+                    LOG.info("  - {}", action);
                 }
             }
 
             // 6. Re-check conflicts after resolution
-            System.out.println("\n--- Post-Resolve Analysis ---");
+            LOG.info("--- Post-Resolve Analysis ---");
             cache.refresh();
             List<ConflictResult> remaining = engine.analyzeAll();
-            System.out.println("Remaining conflicts: " + remaining.size());
+            LOG.info("Remaining conflicts: {}", remaining.size());
             for (int i = 0; i < remaining.size(); i++) {
                 ConflictResult c = remaining.get(i);
-                System.out.printf("  %d. [%s] %s%n", i + 1, c.getSeverity(), c.getDescription());
+                LOG.info("  {}. [{}] {}", i + 1, c.getSeverity(), c.getDescription());
             }
 
             // 7. Print final data summary
-            System.out.println("\n--- Final Data Summary ---");
+            LOG.info("--- Final Data Summary ---");
             cache.refresh();
             printDataSummary(dbManager, cache);
 
-            System.out.println("\n=== Script completed successfully. Run 'gradle run' to see results. ===");
+            LOG.info("=== Script completed successfully. Run 'gradle run' to see results. ===");
 
         } catch (Exception e) {
-            System.err.println("Script failed: " + e.getMessage());
-            e.printStackTrace();
+            LOG.error("Script failed", e);
             System.exit(1);
         } finally {
             dbManager.close();
@@ -109,17 +111,17 @@ public class SeedAndResolve {
 
     private static void printDataSummary(DatabaseManager dbManager, DataCache cache) throws SQLException {
         cache.refresh();
-        System.out.println("  Departments:  " + cache.getAllDepartments().size());
-        System.out.println("  Professors:   " + cache.getAllProfessors().size());
-        System.out.println("  Courses:      " + cache.getAllCourses().size());
-        System.out.println("  Locations:    " + cache.getAllLocations().size());
+        LOG.info("  Departments:  {}", cache.getAllDepartments().size());
+        LOG.info("  Professors:   {}", cache.getAllProfessors().size());
+        LOG.info("  Courses:      {}", cache.getAllCourses().size());
+        LOG.info("  Locations:    {}", cache.getAllLocations().size());
 
         List<ScheduledEvent> events = new ScheduledEventDAO(dbManager).findAll();
         cache.enrichAll(events);
-        System.out.println("  Events:       " + events.size());
+        LOG.info("  Events:       {}", events.size());
 
         if (!events.isEmpty()) {
-            System.out.println("\n  Recent events:");
+            LOG.info("  Recent events:");
             int start = Math.max(0, events.size() - 5);
             for (int i = events.size() - 1; i >= start; i--) {
                 ScheduledEvent ev = events.get(i);
@@ -127,7 +129,7 @@ public class SeedAndResolve {
                 String type = ev.getEventType() != null ? ev.getEventType().getDisplay() : "Event";
                 String loc = ev.getLocationName() != null ? ev.getLocationName() : "Online";
                 String time = ev.getStartEpoch() != null ? TimePolicy.formatEpoch(ev.getStartEpoch()) : "?";
-                System.out.printf("    - %s %s @ %s (%s)%n", course, type, loc, time);
+                LOG.info("    - {} {} @ {} ({})", course, type, loc, time);
             }
         }
     }

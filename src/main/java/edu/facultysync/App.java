@@ -2,6 +2,7 @@ package edu.facultysync;
 
 import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.SeedData;
+import edu.facultysync.core.AppModule;
 import edu.facultysync.service.NotificationService;
 import edu.facultysync.ui.CustomTitleBar;
 import edu.facultysync.ui.DashboardController;
@@ -13,6 +14,8 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.net.URL;
@@ -21,6 +24,8 @@ import java.net.URL;
  * FacultySync – University scheduling conflict detection and management.
  */
 public class App extends Application {
+
+    private static final Logger LOG = LoggerFactory.getLogger(App.class);
 
     /** Application version – updated by release script. */
     public static final String VERSION = "0.5.0";
@@ -52,7 +57,8 @@ public class App extends Application {
         }
 
         // Build UI
-        DashboardController dashboard = new DashboardController(dbManager, primaryStage);
+        AppModule appModule = AppModule.create(dbManager);
+        DashboardController dashboard = new DashboardController(appModule, primaryStage);
 
         // Wrap with custom title bar
         CustomTitleBar titleBar = new CustomTitleBar(primaryStage, "FacultySync  v" + VERSION);
@@ -72,7 +78,7 @@ public class App extends Application {
         if (cssUrl != null) {
             scene.getStylesheets().add(cssUrl.toExternalForm());
         } else {
-            System.err.println("Warning: style.css not found on classpath.");
+            LOG.warn("style.css not found on classpath.");
         }
 
         primaryStage.setScene(scene);

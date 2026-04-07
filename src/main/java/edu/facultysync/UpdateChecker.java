@@ -2,6 +2,8 @@ package edu.facultysync;
 
 import edu.facultysync.service.NotificationService;
 import edu.facultysync.ui.ToastNotification;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -23,6 +25,8 @@ import java.util.regex.Pattern;
  */
 public class UpdateChecker {
 
+    private static final Logger LOG = LoggerFactory.getLogger(UpdateChecker.class);
+
     private static final String GITHUB_API_URL =
             "https://api.github.com/repos/990aa/facultysync/releases/latest";
 
@@ -40,8 +44,8 @@ public class UpdateChecker {
                             "FacultySync v" + latestVersion + " is available. You are running v" + App.VERSION);
                 }
             } catch (Exception e) {
-                // Silently ignore – no network or no releases yet
-                System.err.println("Update check failed: " + e.getMessage());
+                // Keep startup non-blocking, but log details for diagnostics.
+                LOG.debug("Update check failed", e);
             }
         }, "UpdateChecker");
         updateThread.setDaemon(true);
