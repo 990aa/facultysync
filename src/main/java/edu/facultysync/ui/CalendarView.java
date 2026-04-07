@@ -43,9 +43,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Comparator;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -73,7 +71,7 @@ public class CalendarView {
     private final VBox root;
 
     private GridPane calendarGrid;
-    private Calendar currentWeekStart;
+    private LocalDate currentWeekStart;
     private Label weekLabel;
     private DatePicker weekPicker;
 
@@ -112,12 +110,13 @@ public class CalendarView {
                 if (isCancelled()) {
                     return null;
                 }
-                Calendar weekStart = (Calendar) currentWeekStart.clone();
-                Calendar weekEnd = (Calendar) weekStart.clone();
-                weekEnd.add(Calendar.DAY_OF_YEAR, 7);
+                LocalDate weekStart = currentWeekStart;
+                LocalDate weekEnd = weekStart.plusDays(7);
+                long weekStartEpoch = weekStart.atStartOfDay(TimePolicy.zone()).toInstant().toEpochMilli();
+                long weekEndEpoch = weekEnd.atStartOfDay(TimePolicy.zone()).toInstant().toEpochMilli();
 
                 List<ScheduledEvent> events = new ScheduledEventDAO(dbManager)
-                        .findByTimeRange(weekStart.getTimeInMillis(), weekEnd.getTimeInMillis());
+                        .findByTimeRange(weekStartEpoch, weekEndEpoch);
                 if (isCancelled()) {
                     return null;
                 }
@@ -135,14 +134,16 @@ public class CalendarView {
                 }
 
                 int[] bounds = computeHourBounds(events);
-                Calendar weekEndLabel = (Calendar) weekStart.clone();
-                weekEndLabel.add(Calendar.DAY_OF_YEAR, 6);
-                String labelText = TimePolicy.formatWeekRange(weekStart.getTimeInMillis())
+        long weekEndLabelEpoch = weekStart.plusDays(6)
+            .atStartOfDay(TimePolicy.zone())
+            .toInstant()
+            .toEpochMilli();
+        String labelText = TimePolicy.formatWeekRange(weekStartEpoch)
                         + " - "
-                        + TimePolicy.formatWeekRange(weekEndLabel.getTimeInMillis());
+            + TimePolicy.formatWeekRange(weekEndLabelEpoch);
 
                 return new CalendarSnapshot(
-                        weekStart.getTimeInMillis(),
+            weekStart,
                         events,
                         conflictIds,
                         bounds[0],
@@ -161,7 +162,7 @@ public class CalendarView {
                 return;
             }
             CalendarSnapshot snapshot = task.getValue();
-            if (snapshot.weekStartEpoch != currentWeekStart.getTimeInMillis()) {
+            if (!snapshot.weekStart.equals(currentWeekStart)) {
                 if (onComplete != null) {
                     onComplete.run();
                 }
@@ -239,7 +240,7 @@ public class CalendarView {
         Button prevBtn = new Button("< Prev");
         prevBtn.getStyleClass().add("calendar-nav-btn");
         prevBtn.setOnAction(e -> {
-            currentWeekStart.add(Calendar.WEEK_OF_YEAR, -1);
+            currentWeekStart = currentWeekStart.minusWeeks(1);
             syncWeekPicker();
             refresh();
         });
@@ -254,7 +255,7 @@ public class CalendarView {
         Button nextBtn = new Button("Next >");
         nextBtn.getStyleClass().add("calendar-nav-btn");
         nextBtn.setOnAction(e -> {
-            currentWeekStart.add(Calendar.WEEK_OF_YEAR, 1);
+            currentWeekStart = currentWeekStart.plusWeeks(1);
             syncWeekPicker();
             refresh();
         });
@@ -262,7 +263,7 @@ public class CalendarView {
         Label jumpLabel = new Label("Jump to week:");
         jumpLabel.getStyleClass().add("calendar-jump-label");
 
-        weekPicker = new DatePicker(toLocalDate(currentWeekStart.getTimeInMillis()));
+        weekPicker = new DatePicker(currentWeekStart);
         weekPicker.getStyleClass().add("calendar-week-picker");
         weekPicker.setEditable(false);
         weekPicker.setOnAction(e -> {
@@ -343,14 +344,15 @@ public class CalendarView {
         cornerLabel.getStyleClass().add("calendar-corner");
         calendarGrid.add(cornerLabel, 0, 0);
 
-        Calendar dayCal = (Calendar) currentWeekStart.clone();
+        LocalDate dayCal = currentWeekStart;
         for (int d = 0; d < 7; d++) {
-            Label dayLabel = new Label(TimePolicy.formatDay(dayCal.getTimeInMillis()));
+            long dayEpoch = dayCal.atStartOfDay(TimePolicy.zone()).toInstant().toEpochMilli();
+            Label dayLabel = new Label(TimePolicy.formatDay(dayEpoch));
             dayLabel.getStyleClass().add("calendar-day-header");
             dayLabel.setMaxWidth(Double.MAX_VALUE);
             dayLabel.setAlignment(Pos.CENTER);
             calendarGrid.add(dayLabel, d + 1, 0);
-            dayCal.add(Calendar.DAY_OF_YEAR, 1);
+            dayCal = dayCal.plusDays(1);
         }
 
         for (int h = renderStartHour; h < renderEndHour; h++) {
@@ -523,13 +525,12 @@ public class CalendarView {
             return;
         }
 
-        Calendar newStart = (Calendar) currentWeekStart.clone();
-        newStart.add(Calendar.DAY_OF_YEAR, dayOffset);
-        newStart.set(Calendar.HOUR_OF_DAY, hour);
-        newStart.set(Calendar.MINUTE, 0);
-        newStart.set(Calendar.SECOND, 0);
-        newStart.set(Calendar.MILLISECOND, 0);
-        long newStartEpoch = newStart.getTimeInMillis();
+        long newStartEpoch = currentWeekStart
+            .plusDays(dayOffset)
+            .atTime(hour, 0)
+            .atZone(TimePolicy.zone())
+            .toInstant()
+            .toEpochMilli();
 
         Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
         confirm.setTitle("Move Event");
@@ -708,9 +709,7 @@ public class CalendarView {
     }
 
     private void setWeekFromDate(LocalDate date) {
-        LocalDate monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        ZonedDateTime zdt = monday.atStartOfDay(TimePolicy.zone());
-        currentWeekStart = GregorianCalendar.from(zdt);
+        currentWeekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         syncWeekPicker();
     }
 
@@ -721,7 +720,7 @@ public class CalendarView {
 
         suppressWeekPickerEvent = true;
         try {
-            weekPicker.setValue(toLocalDate(currentWeekStart.getTimeInMillis()));
+            weekPicker.setValue(currentWeekStart);
         } finally {
             suppressWeekPickerEvent = false;
         }
@@ -733,13 +732,13 @@ public class CalendarView {
 
     private int dayIndexForEpoch(long epochMs) {
         return (int) ChronoUnit.DAYS.between(
-                toLocalDate(currentWeekStart.getTimeInMillis()),
+            currentWeekStart,
                 toLocalDate(epochMs)
         );
     }
 
     private static class CalendarSnapshot {
-        final long weekStartEpoch;
+        final LocalDate weekStart;
         final List<ScheduledEvent> events;
         final Set<Integer> conflictEventIds;
         final int startHour;
@@ -747,14 +746,14 @@ public class CalendarView {
         final String weekLabelText;
 
         CalendarSnapshot(
-                long weekStartEpoch,
+            LocalDate weekStart,
                 List<ScheduledEvent> events,
                 Set<Integer> conflictEventIds,
                 int startHour,
                 int endHour,
                 String weekLabelText
         ) {
-            this.weekStartEpoch = weekStartEpoch;
+            this.weekStart = weekStart;
             this.events = new ArrayList<>(events);
             this.conflictEventIds = new HashSet<>(conflictEventIds);
             this.startHour = startHour;

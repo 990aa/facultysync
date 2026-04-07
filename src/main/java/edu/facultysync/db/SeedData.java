@@ -301,7 +301,7 @@ public class SeedData {
         eventDao.insert(new ScheduledEvent(null, courseId, locId, type, startEpoch, endEpoch));
     }
 
-    private static long buildEpoch(Calendar baseMonday, int dayOffset, int hour, int minute) {
+    private static long buildEpoch(LocalDate baseMonday, int dayOffset, int hour, int minute) {
         return baseMonday
             .plusDays(dayOffset)
             .atTime(hour, minute)
