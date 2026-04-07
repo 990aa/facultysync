@@ -902,7 +902,8 @@ public class DashboardController {
             return new SimpleStringProperty(dept != null ? dept.getName() : "Unknown");
         });
 
-        table.getColumns().addAll(nameCol, deptCol);
+        table.getColumns().add(nameCol);
+        table.getColumns().add(deptCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
@@ -1004,7 +1005,9 @@ public class DashboardController {
                         : ""
         ));
 
-        table.getColumns().addAll(codeCol, profCol, enrollmentCol);
+        table.getColumns().add(codeCol);
+        table.getColumns().add(profCol);
+        table.getColumns().add(enrollmentCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
@@ -1106,7 +1109,10 @@ public class DashboardController {
                 cd.getValue().getHasProjector() != null && cd.getValue().getHasProjector() == 1 ? "Yes" : "No"
         ));
 
-        table.getColumns().addAll(buildingCol, roomCol, capacityCol, projectorCol);
+        table.getColumns().add(buildingCol);
+        table.getColumns().add(roomCol);
+        table.getColumns().add(capacityCol);
+        table.getColumns().add(projectorCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
         Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
