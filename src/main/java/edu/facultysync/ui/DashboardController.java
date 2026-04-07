@@ -41,6 +41,9 @@ import java.util.function.Consumer;
  */
 public class DashboardController {
 
+    private static final Department NO_FILTER_DEPARTMENT =
+            new Department(Integer.MIN_VALUE, "No Filter (All Departments)");
+
     private final DatabaseManager dbManager;
     private final Stage stage;
     private final DataCache cache;
@@ -114,7 +117,14 @@ public class DashboardController {
         // --- Left control panel ---
         VBox leftPanel = buildLeftPanel();
         leftPanel.getStyleClass().add("left-panel");
-        pane.setLeft(leftPanel);
+        ScrollPane leftPanelScroll = new ScrollPane(leftPanel);
+        leftPanelScroll.setFitToWidth(true);
+        leftPanelScroll.setPannable(true);
+        leftPanelScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        leftPanelScroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        leftPanelScroll.setPrefWidth(260);
+        leftPanelScroll.getStyleClass().add("left-panel-scroll");
+        pane.setLeft(leftPanelScroll);
 
         // --- Center: tabs ---
         tabPane = new TabPane();
@@ -122,7 +132,7 @@ public class DashboardController {
         tabPane.getStyleClass().add("main-tab-pane");
 
         // Home tab
-        homePage = new HomePage(dbManager, cache, tabPane, eventBus);
+        homePage = new HomePage(dbManager, cache, eventBus);
         Tab homeTab = new Tab("  " + UiTokens.Icons.HOME + " Home  ", homePage.getContent());
         homeTab.setId("homeTab");
 
@@ -195,15 +205,37 @@ public class DashboardController {
         deptLabel.getStyleClass().add("sidebar-section-label");
         departmentCombo.setId("departmentCombo");
         departmentCombo.setMaxWidth(Double.MAX_VALUE);
-        departmentCombo.setPromptText("All Departments");
-        departmentCombo.getItems().setAll(sortedDepartments());
+        departmentCombo.setStyle("-fx-background-color: white; -fx-text-fill: black; -fx-prompt-text-fill: #2c3e50;");
+        departmentCombo.setCellFactory(list -> new ListCell<>() {
+            @Override
+            protected void updateItem(Department item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(item.getName());
+                }
+                setStyle("-fx-text-fill: black; -fx-background-color: white;");
+            }
+        });
+        ListCell<Department> buttonCell = new ListCell<>() {
+            @Override
+            protected void updateItem(Department item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText("No Filter (All Departments)");
+                } else {
+                    setText(item.getName());
+                }
+                setStyle("-fx-text-fill: black; -fx-background-color: white;");
+            }
+        };
+        departmentCombo.setButtonCell(buttonCell);
+        departmentCombo.getItems().setAll(departmentChoices());
+        departmentCombo.getSelectionModel().select(NO_FILTER_DEPARTMENT);
         departmentCombo.setOnAction(e -> refreshData());
 
         // Action buttons with icons
-        Button importBtn = createSidebarButton("\uD83D\uDCE5 Import CSV", "primary-btn");
-        importBtn.setId("importBtn");
-        importBtn.setOnAction(e -> handleImport());
-
         Button exportScheduleBtn = createSidebarButton("\uD83D\uDCE4 Export Schedule", null);
         exportScheduleBtn.setId("exportScheduleBtn");
         exportScheduleBtn.setOnAction(e -> handleExportSchedule());
@@ -283,7 +315,7 @@ public class DashboardController {
         panel.getChildren().addAll(
                 title, subtitle, new Separator(),
                 deptLabel, departmentCombo,
-                importBtn, exportScheduleBtn, exportConflictBtn,
+            exportScheduleBtn, exportConflictBtn,
                 analyzeBtn, autoResolveBtn,
                 sep1, manageLabel,
                 manageDeptBtn, manageProfBtn, manageCourseBtn, manageLocationBtn,
@@ -336,7 +368,11 @@ public class DashboardController {
                 return;
             }
 
-            List<ScheduledEvent> sortedEvents = sortEventsChronologically(task.getValue());
+            Department selectedDepartment = departmentCombo.getSelectionModel().getSelectedItem();
+            List<ScheduledEvent> sortedEvents = sortEventsChronologically(task.getValue())
+                    .stream()
+                    .filter(event -> matchesDepartmentFilter(event, selectedDepartment))
+                    .toList();
             scheduleView.getEventTable().setItems(FXCollections.observableArrayList(sortedEvents));
             statusLabel.setText("Loaded " + sortedEvents.size() + " events.");
             if (onComplete != null) {
@@ -1752,8 +1788,46 @@ public class DashboardController {
     private void refreshAllViews() {
         cancelActiveViewRefreshes();
         refreshData();
-        departmentCombo.getItems().setAll(sortedDepartments());
+        Department selected = departmentCombo.getSelectionModel().getSelectedItem();
+        departmentCombo.getItems().setAll(departmentChoices());
+        if (selected == null || isNoFilterSelection(selected)) {
+            departmentCombo.getSelectionModel().select(NO_FILTER_DEPARTMENT);
+        } else {
+            departmentCombo.getItems().stream()
+                    .filter(item -> Objects.equals(item.getDeptId(), selected.getDeptId()))
+                    .findFirst()
+                    .ifPresentOrElse(
+                            item -> departmentCombo.getSelectionModel().select(item),
+                            () -> departmentCombo.getSelectionModel().select(NO_FILTER_DEPARTMENT)
+                    );
+        }
         eventBus.post(new DataChangedEvent("dashboard-refresh"));
+    }
+
+    private List<Department> departmentChoices() {
+        List<Department> choices = new ArrayList<>();
+        choices.add(NO_FILTER_DEPARTMENT);
+        choices.addAll(sortedDepartments());
+        return choices;
+    }
+
+    private boolean isNoFilterSelection(Department department) {
+        return department == null || Objects.equals(department.getDeptId(), NO_FILTER_DEPARTMENT.getDeptId());
+    }
+
+    private boolean matchesDepartmentFilter(ScheduledEvent event, Department selectedDepartment) {
+        if (isNoFilterSelection(selectedDepartment)) {
+            return true;
+        }
+        Course course = cache.getCourse(event.getCourseId());
+        if (course == null) {
+            return false;
+        }
+        Professor professor = cache.getProfessor(course.getProfId());
+        if (professor == null) {
+            return false;
+        }
+        return Objects.equals(professor.getDeptId(), selectedDepartment.getDeptId());
     }
 
     private List<ScheduledEvent> sortEventsChronologically(List<ScheduledEvent> events) {

@@ -67,6 +67,15 @@
     -fx-padding: 15;
 }
 
+.left-panel-scroll {
+    -fx-background-color: #2c3e50;
+    -fx-border-color: transparent;
+}
+
+.left-panel-scroll > .viewport {
+    -fx-background-color: #2c3e50;
+}
+
 .left-panel .label {
     -fx-text-fill: #ecf0f1;
     -fx-font-size: 13px;
@@ -116,14 +125,32 @@
 }
 
 .left-panel .combo-box {
-    -fx-background-color: #34495e;
-    -fx-mark-color: #ecf0f1;
+    -fx-background-color: white;
+    -fx-mark-color: #2c3e50;
     -fx-background-radius: 6;
 }
 
 .left-panel .combo-box .list-cell {
-    -fx-text-fill: #ecf0f1;
-    -fx-background-color: transparent;
+    -fx-text-fill: black;
+    -fx-background-color: white;
+}
+
+.left-panel .combo-box .arrow-button {
+    -fx-background-color: white;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: white;
+}
+
+.combo-box-popup .list-cell {
+    -fx-text-fill: black;
+    -fx-background-color: white;
+}
+
+.combo-box-popup .list-cell:hover,
+.combo-box-popup .list-cell:selected {
+    -fx-background-color: #e8eef5;
 }
 
 /* Action button variants */
@@ -658,6 +685,17 @@
 
 .analytics-chart {
     -fx-padding: 8;
+}
+
+.analytics-container .chart-title,
+.analytics-container .axis-label,
+.analytics-container .axis,
+.analytics-container .chart-legend-item {
+    -fx-text-fill: #2c3e50;
+}
+
+.analytics-container .axis {
+    -fx-tick-label-fill: #2c3e50;
 }
 
 /* Summary Cards */

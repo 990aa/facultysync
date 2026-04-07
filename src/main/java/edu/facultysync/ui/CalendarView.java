@@ -236,6 +236,7 @@ public class CalendarView {
 
     private VBox buildView() {
         VBox container = new VBox(0);
+        container.setFillWidth(true);
         container.getStyleClass().add("calendar-container");
 
         HBox navBar = buildNavBar();
@@ -245,6 +246,9 @@ public class CalendarView {
 
         ScrollPane scrollPane = new ScrollPane(calendarGrid);
         scrollPane.setFitToWidth(true);
+        scrollPane.setFitToHeight(false);
+        scrollPane.setPannable(true);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.getStyleClass().add("calendar-scroll");
         VBox.setVgrow(scrollPane, Priority.ALWAYS);
 

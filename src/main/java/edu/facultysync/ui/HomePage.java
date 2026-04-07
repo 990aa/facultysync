@@ -15,7 +15,6 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TabPane;
 import javafx.scene.layout.*;
 
 import java.util.ArrayList;
@@ -29,19 +28,17 @@ public class HomePage {
 
     private final DatabaseManager dbManager;
     private final DataCache cache;
-    private final TabPane tabPane;
     private final AppEventBus eventBus;
     private final VBox content;
     private Task<HomeSnapshot> activeRefreshTask;
 
-    public HomePage(DatabaseManager dbManager, DataCache cache, TabPane tabPane) {
-        this(dbManager, cache, tabPane, null);
+    public HomePage(DatabaseManager dbManager, DataCache cache) {
+        this(dbManager, cache, null);
     }
 
-    public HomePage(DatabaseManager dbManager, DataCache cache, TabPane tabPane, AppEventBus eventBus) {
+    public HomePage(DatabaseManager dbManager, DataCache cache, AppEventBus eventBus) {
         this.dbManager = dbManager;
         this.cache = cache;
-        this.tabPane = tabPane;
         this.eventBus = eventBus;
         this.content = new VBox();
         this.content.getStyleClass().add("home-page");
@@ -183,16 +180,16 @@ public class HomePage {
         VBox hero = buildHeroSection();
         // Stats cards
         HBox statsRow = buildStatsRow(snapshot);
-        // Quick actions
-        VBox quickActions = buildQuickActions();
         // Recent activity
         VBox recentActivity = buildRecentActivity(snapshot.recentEvents);
 
-        VBox innerContent = new VBox(24, hero, statsRow, quickActions, recentActivity);
+        VBox innerContent = new VBox(24, hero, statsRow, recentActivity);
         innerContent.setPadding(new Insets(30, 40, 30, 40));
 
         ScrollPane scroll = new ScrollPane(innerContent);
         scroll.setFitToWidth(true);
+        scroll.setPannable(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scroll.getStyleClass().add("home-scroll");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
@@ -255,55 +252,6 @@ public class HomePage {
         card.setPrefWidth(180);
         card.setMinWidth(140);
         HBox.setHgrow(card, Priority.ALWAYS);
-        return card;
-    }
-
-    private VBox buildQuickActions() {
-        Label sectionTitle = new Label("\u26A1 Quick Actions");
-        sectionTitle.getStyleClass().add("section-title");
-
-        HBox actions = new HBox(16);
-        actions.setAlignment(Pos.CENTER_LEFT);
-
-        actions.getChildren().addAll(
-                buildActionCard("\uD83D\uDCC5", "Schedule", "View & manage\nall events", 1),
-                buildActionCard("\u26A0", "Conflicts", "Detect & resolve\nscheduling issues", 2),
-                buildActionCard("\uD83D\uDCC6", "Calendar", "Visual weekly\ncalendar view", 3),
-                buildActionCard("\uD83D\uDCCA", "Analytics", "Charts & insights\non utilization", 4)
-        );
-
-        VBox section = new VBox(12, sectionTitle, actions);
-        return section;
-    }
-
-    private VBox buildActionCard(String icon, String title, String desc, int tabIndex) {
-        Label iconLbl = new Label(icon);
-        iconLbl.setStyle("-fx-font-size: 32px;");
-
-        Label titleLbl = new Label(title);
-        titleLbl.getStyleClass().add("action-card-title");
-
-        Label descLbl = new Label(desc);
-        descLbl.getStyleClass().add("action-card-desc");
-        descLbl.setWrapText(true);
-
-        VBox card = new VBox(8, iconLbl, titleLbl, descLbl);
-        card.getStyleClass().add("action-card");
-        card.setAlignment(Pos.CENTER);
-        card.setPadding(new Insets(20));
-        card.setPrefWidth(200);
-        card.setMinWidth(160);
-        HBox.setHgrow(card, Priority.ALWAYS);
-
-        // Navigate to tab on click
-        card.setOnMouseClicked(e -> {
-            if (tabPane != null && tabIndex < tabPane.getTabs().size()) {
-                tabPane.getSelectionModel().select(tabIndex);
-            }
-        });
-
-        card.setCursor(javafx.scene.Cursor.HAND);
-
         return card;
     }
 

@@ -61,7 +61,7 @@ public class App extends Application {
         DashboardController dashboard = new DashboardController(appModule, primaryStage);
 
         // Wrap with custom title bar
-        CustomTitleBar titleBar = new CustomTitleBar(primaryStage, "FacultySync  v" + VERSION);
+        CustomTitleBar titleBar = new CustomTitleBar(primaryStage, "FacultySync");
         VBox appContainer = new VBox();
         appContainer.getChildren().addAll(titleBar, dashboard.getRoot());
         VBox.setVgrow(dashboard.getRoot(), javafx.scene.layout.Priority.ALWAYS);

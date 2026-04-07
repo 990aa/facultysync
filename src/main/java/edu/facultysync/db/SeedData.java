@@ -99,12 +99,19 @@ public class SeedData {
         eventDao.insert(makeEvent(cs201, sciA201, EventType.LECTURE, base, 0, 9, 0, 10, 30));    // Mon 9:00-10:30
         eventDao.insert(makeEvent(math201, sciA201, EventType.LECTURE, base, 0, 9, 30, 11, 0));  // Mon 9:30-11:00 OVERLAP!
 
+        // INTENTIONAL CONFLICT 1B: Professor overlap (same professor, different rooms)
+        eventDao.insert(makeEvent(cs401, engLab, EventType.LECTURE, base, 0, 9, 15, 10, 45));    // Mon 9:15-10:45 OVERLAP with CS101 for Dr. Turing
+
         // Tuesday events
         eventDao.insert(makeEvent(cs101, sciA101, EventType.LECTURE, base, 1, 9, 0, 10, 30));    // Tue 9:00-10:30
         eventDao.insert(makeEvent(cs301, sciA301, EventType.LECTURE, base, 1, 11, 0, 12, 30));   // Tue 11:00-12:30
         eventDao.insert(makeEvent(phys201, sciB202, EventType.LECTURE, base, 1, 13, 0, 14, 30)); // Tue 13:00-14:30
         eventDao.insert(makeEvent(bus101, busAnnex, EventType.LECTURE, base, 1, 10, 0, 11, 30)); // Tue 10:00-11:30
         eventDao.insert(makeEvent(eng101, engLab, EventType.LECTURE, base, 1, 15, 0, 16, 30));   // Tue 15:00-16:30
+
+        // INTENTIONAL CONFLICT 1C: Business professor overlap + tight transition
+        eventDao.insert(makeEvent(bus101, libRoom, EventType.OFFICE_HOURS, base, 1, 10, 15, 11, 0)); // Tue 10:15-11:00 OVERLAP for Dr. Drucker
+        eventDao.insert(makeEvent(bus101, engLab, EventType.LECTURE, base, 1, 11, 35, 12, 35));      // Tue 11:35-12:35 tight transition from Business Center
 
         // Wednesday events
         eventDao.insert(makeEvent(math101, sciA101, EventType.LECTURE, base, 2, 9, 0, 10, 30));  // Wed 9:00-10:30
@@ -133,6 +140,7 @@ public class SeedData {
         eventDao.insert(makeEvent(cs101, sciA101, EventType.EXAM, base, 7, 9, 0, 12, 0));        // Next Mon 9:00-12:00
         eventDao.insert(makeEvent(math101, busCenter, EventType.EXAM, base, 7, 13, 0, 16, 0));   // Next Mon 13:00-16:00
         eventDao.insert(makeEvent(phys101, sciB102, EventType.EXAM, base, 8, 9, 0, 12, 0));      // Next Tue 9:00-12:00
+        eventDao.insert(makeEvent(bus101, busCenter, EventType.EXAM, base, 7, 14, 0, 15, 0));    // Next Mon 14:00-15:00 ROOM OVERLAP in Business Center
 
         // Office hours
         eventDao.insert(makeEvent(cs101, libRoom, EventType.OFFICE_HOURS, base, 0, 15, 0, 16, 0)); // Mon 15:00-16:00
@@ -169,8 +177,11 @@ public class SeedData {
         Location sciA101 = findLocation(locationDao, "Science Building A", "101");
         Location sciA201 = findLocation(locationDao, "Science Building A", "201");
         Location engHall = findLocation(locationDao, "Engineering Hall", "100");
+        Location engLab = findLocation(locationDao, "Engineering Hall", "200");
+        Location busCenter = findLocation(locationDao, "Business Center", "A1");
         Location libRoom = findLocation(locationDao, "Library", "Seminar-1");
-        if (sciA101 == null || sciA201 == null || engHall == null || libRoom == null) {
+        if (sciA101 == null || sciA201 == null || engHall == null
+            || engLab == null || busCenter == null || libRoom == null) {
             return;
         }
 
@@ -196,6 +207,18 @@ public class SeedData {
             base, 0, 15, 0, 16, 0);
         upsertConflictEvent(eventDao, phys101.getCourseId(), libRoom.getLocId(), EventType.OFFICE_HOURS,
             base, 0, 15, 0, 16, 0);
+
+        // PROFESSOR_OVERLAP #1 (Computer Science)
+        upsertConflictEvent(eventDao, cs401.getCourseId(), engLab.getLocId(), EventType.LECTURE,
+            base, 0, 9, 15, 10, 45);
+
+        // BUSINESS department conflict set (room overlap + professor overlap + tight transition)
+        upsertConflictEvent(eventDao, bus101.getCourseId(), busCenter.getLocId(), EventType.EXAM,
+            base, 7, 14, 0, 15, 0);
+        upsertConflictEvent(eventDao, bus101.getCourseId(), libRoom.getLocId(), EventType.OFFICE_HOURS,
+            base, 1, 10, 15, 11, 0);
+        upsertConflictEvent(eventDao, bus101.getCourseId(), engLab.getLocId(), EventType.LECTURE,
+            base, 1, 11, 35, 12, 35);
 
         // TIGHT_TRANSITION
         upsertConflictEvent(eventDao, cs101.getCourseId(), sciA101.getLocId(), EventType.LECTURE,

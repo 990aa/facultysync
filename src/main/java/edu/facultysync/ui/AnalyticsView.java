@@ -73,6 +73,7 @@ public class AnalyticsView {
 
     private VBox buildView() {
         VBox container = new VBox(0);
+        container.setFillWidth(true);
         container.getStyleClass().add("analytics-container");
 
         // Header
@@ -87,10 +88,14 @@ public class AnalyticsView {
         header.getChildren().add(title);
 
         chartsContainer = new VBox(20);
+        chartsContainer.setFillWidth(true);
         chartsContainer.setPadding(new Insets(20));
 
         ScrollPane scroll = new ScrollPane(chartsContainer);
         scroll.setFitToWidth(true);
+        scroll.setFitToHeight(false);
+        scroll.setPannable(true);
+        scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scroll.getStyleClass().add("analytics-scroll");
         VBox.setVgrow(scroll, Priority.ALWAYS);
 
@@ -192,6 +197,7 @@ public class AnalyticsView {
         // Row 2: Event type pie + Peak hours bar
         HBox row1 = new HBox(20);
         row1.setAlignment(Pos.TOP_CENTER);
+        row1.setFillHeight(true);
 
         VBox eventTypePie = buildEventTypePieChart(data);
         VBox peakHoursBar = buildPeakHoursBarChart(data);
@@ -202,6 +208,7 @@ public class AnalyticsView {
         // Row 3: Building utilization + Department events
         HBox row2 = new HBox(20);
         row2.setAlignment(Pos.TOP_CENTER);
+        row2.setFillHeight(true);
 
         VBox buildingPie = buildBuildingUtilizationChart(data);
         VBox deptBar = buildDepartmentBarChart(data);
@@ -251,6 +258,7 @@ public class AnalyticsView {
         pie.getStyleClass().add("analytics-chart");
         pie.setLabelsVisible(true);
         pie.setLegendVisible(true);
+        pie.setAnimated(false);
 
         for (Map.Entry<String, Integer> entry : data.eventsByType.entrySet()) {
             pie.getData().add(new PieChart.Data(entry.getKey() + " (" + entry.getValue() + ")", entry.getValue()));
@@ -271,7 +279,10 @@ public class AnalyticsView {
         BarChart<String, Number> barChart = new BarChart<>(xAxis, yAxis);
         barChart.setTitle("Peak Hours Distribution");
         barChart.getStyleClass().add("analytics-chart");
-        barChart.setLegendVisible(false);
+        barChart.setLegendVisible(true);
+        barChart.setAnimated(false);
+        barChart.setCategoryGap(14);
+        barChart.setBarGap(4);
 
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("Events");
@@ -294,6 +305,8 @@ public class AnalyticsView {
         pie.setTitle("Room Utilization by Building");
         pie.getStyleClass().add("analytics-chart");
         pie.setLabelsVisible(true);
+        pie.setLegendVisible(true);
+        pie.setAnimated(false);
 
         for (Map.Entry<String, Integer> entry : data.eventsByBuilding.entrySet()) {
             pie.getData().add(new PieChart.Data(entry.getKey() + " (" + entry.getValue() + ")", entry.getValue()));
@@ -311,6 +324,7 @@ public class AnalyticsView {
     private VBox buildDepartmentBarChart(ChartData data) {
         CategoryAxis xAxis = new CategoryAxis();
         xAxis.setLabel("Department");
+        xAxis.setTickLabelRotation(-25);
 
         NumberAxis yAxis = new NumberAxis();
         yAxis.setLabel("Events");
@@ -318,7 +332,10 @@ public class AnalyticsView {
         BarChart<String, Number> barChart = new BarChart<>(xAxis, yAxis);
         barChart.setTitle("Events per Department");
         barChart.getStyleClass().add("analytics-chart");
-        barChart.setLegendVisible(false);
+        barChart.setLegendVisible(true);
+        barChart.setAnimated(false);
+        barChart.setCategoryGap(18);
+        barChart.setBarGap(4);
 
         XYChart.Series<String, Number> series = new XYChart.Series<>();
         series.setName("Events");
@@ -340,8 +357,15 @@ public class AnalyticsView {
 
         VBox wrapper = new VBox(8, titleLabel, chart);
         wrapper.getStyleClass().add("chart-wrapper");
+        wrapper.setFillWidth(true);
+        wrapper.setMinHeight(380);
         wrapper.setPadding(new Insets(16));
         wrapper.setAlignment(Pos.TOP_CENTER);
+        if (chart instanceof Region region) {
+            region.setMinHeight(300);
+            region.setPrefHeight(320);
+            VBox.setVgrow(region, Priority.ALWAYS);
+        }
         return wrapper;
     }
 
