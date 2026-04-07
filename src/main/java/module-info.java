@@ -1,6 +1,6 @@
 module edu.facultysync {
-    requires javafx.controls;
-    requires javafx.graphics;
+    requires transitive javafx.controls;
+    requires transitive javafx.graphics;
     requires java.sql;
     requires java.desktop;
     requires org.slf4j;
