@@ -22,8 +22,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Rectangle;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -50,11 +48,8 @@ public class DashboardController {
     // UI components
     private TabPane tabPane;
     private final ComboBox<Department> departmentCombo = new ComboBox<>();
-    private final TableView<ScheduledEvent> eventTable = new TableView<>();
-    private final TableView<ConflictResult> conflictTable = new TableView<>();
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label statusLabel = new Label("Ready");
-    private final Label conflictSummaryLabel = new Label();
     private final StackPane busyOverlay = new StackPane();
     private final Label busyOverlayLabel = new Label("Loading...");
     private int busyDepth = 0;
@@ -62,6 +57,8 @@ public class DashboardController {
 
     // Sub-views
     private HomePage homePage;
+    private ScheduleView scheduleView;
+    private ConflictView conflictView;
     private CalendarView calendarView;
     private AnalyticsView analyticsView;
 
@@ -124,11 +121,13 @@ public class DashboardController {
         homeTab.setId("homeTab");
 
         // Schedule tab
-        Tab scheduleTab = new Tab("  \uD83D\uDCC5 Schedule  ", buildScheduleView());
+        scheduleView = new ScheduleView(this::handleEditEvent, this::handleDeleteEvent);
+        Tab scheduleTab = new Tab("  \uD83D\uDCC5 Schedule  ", scheduleView.getView());
         scheduleTab.setId("scheduleTab");
 
         // Conflicts tab
-        Tab conflictTab = new Tab("  \u26A0 Conflicts  ", buildConflictView());
+        conflictView = new ConflictView(this::handleReassign);
+        Tab conflictTab = new Tab("  \u26A0 Conflicts  ", conflictView.getView());
         conflictTab.setId("conflictTab");
 
         // Calendar tab
@@ -298,156 +297,6 @@ public class DashboardController {
         return btn;
     }
 
-    @SuppressWarnings("unchecked")
-    private VBox buildScheduleView() {
-        VBox box = new VBox(8);
-        box.setPadding(new Insets(10));
-
-        // Columns with CONSTRAINED_RESIZE for auto-fill
-        TableColumn<ScheduledEvent, String> courseCol = new TableColumn<>("Course");
-        courseCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getCourseCode() != null
-                        ? cd.getValue().getCourseCode() : ""));
-
-        TableColumn<ScheduledEvent, String> typeCol = new TableColumn<>("Type");
-        typeCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getEventType() != null
-                        ? cd.getValue().getEventType().getDisplay() : ""));
-
-        TableColumn<ScheduledEvent, String> locCol = new TableColumn<>("Location");
-        locCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getLocationName() != null
-                        ? cd.getValue().getLocationName() : "Online"));
-
-        TableColumn<ScheduledEvent, String> profCol = new TableColumn<>("Professor");
-        profCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getProfessorName() != null
-                        ? cd.getValue().getProfessorName() : ""));
-
-        TableColumn<ScheduledEvent, String> startCol = new TableColumn<>("Start (UTC)");
-        startCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getStartEpoch() != null
-                ? TimePolicy.formatEpoch(cd.getValue().getStartEpoch()) : ""));
-
-        TableColumn<ScheduledEvent, String> endCol = new TableColumn<>("End (UTC)");
-        endCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getEndEpoch() != null
-                ? TimePolicy.formatEpoch(cd.getValue().getEndEpoch()) : ""));
-
-        TableColumn<ScheduledEvent, String> durCol = new TableColumn<>("Duration");
-        durCol.setCellValueFactory(cd ->
-                new SimpleStringProperty(cd.getValue().getDurationMinutes() + " min"));
-
-        eventTable.getColumns().addAll(courseCol, typeCol, locCol, profCol, startCol, endCol, durCol);
-        eventTable.setId("eventTable");
-        eventTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-
-        // Empty state with illustration
-        Label emptyLabel = new Label("\uD83D\uDCED  No events scheduled.\nImport a CSV or add events manually to get started!");
-        emptyLabel.getStyleClass().add("empty-state-label");
-        emptyLabel.setWrapText(true);
-        eventTable.setPlaceholder(emptyLabel);
-
-        eventTable.setRowFactory(tv -> {
-            TableRow<ScheduledEvent> row = new TableRow<>();
-
-            MenuItem editItem = new MenuItem("Edit Event");
-            editItem.setOnAction(e -> handleEditEvent(row.getItem()));
-
-            MenuItem deleteItem = new MenuItem("Delete Event");
-            deleteItem.setOnAction(e -> handleDeleteEvent(row.getItem()));
-
-            ContextMenu menu = new ContextMenu(editItem, deleteItem);
-            row.emptyProperty().addListener((obs, wasEmpty, isEmpty) -> row.setContextMenu(isEmpty ? null : menu));
-            row.setContextMenu(row.isEmpty() ? null : menu);
-
-            row.setOnMouseClicked(event -> {
-                if (event.getClickCount() == 2 && !row.isEmpty()) {
-                    handleEditEvent(row.getItem());
-                }
-            });
-
-            return row;
-        });
-
-        VBox.setVgrow(eventTable, Priority.ALWAYS);
-
-        box.getChildren().add(eventTable);
-        return box;
-    }
-
-    @SuppressWarnings("unchecked")
-    private VBox buildConflictView() {
-        VBox box = new VBox(8);
-        box.setPadding(new Insets(10));
-
-        conflictSummaryLabel.setId("conflictSummaryLabel");
-
-        // Conflict table
-        TableColumn<ConflictResult, String> sevCol = new TableColumn<>("Severity");
-        sevCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getSeverity().name()));
-        sevCol.setPrefWidth(130);
-        sevCol.setCellFactory(col -> new TableCell<>() {
-            @Override
-            protected void updateItem(String item, boolean empty) {
-                super.updateItem(item, empty);
-                setText(empty ? null : item);
-                if (!empty) {
-                    Rectangle indicator = new Rectangle(12, 12);
-                    indicator.setArcWidth(3);
-                    indicator.setArcHeight(3);
-                    if ("HARD_OVERLAP".equals(item)) {
-                        indicator.setFill(Color.web("#e74c3c"));
-                    } else if ("PROFESSOR_OVERLAP".equals(item)) {
-                        indicator.setFill(Color.web("#c0392b"));
-                    } else {
-                        indicator.setFill(Color.web("#f39c12"));
-                    }
-                    setGraphic(indicator);
-                } else {
-                    setGraphic(null);
-                }
-            }
-        });
-
-        TableColumn<ConflictResult, String> descCol = new TableColumn<>("Description");
-        descCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getDescription()));
-
-        TableColumn<ConflictResult, String> altCol = new TableColumn<>("Alternatives");
-        altCol.setCellValueFactory(cd -> {
-            List<Location> alts = cd.getValue().getAvailableAlternatives();
-            if (alts == null || alts.isEmpty()) return new SimpleStringProperty("None");
-            StringBuilder sb = new StringBuilder();
-            for (Location l : alts) sb.append(l.getDisplayName()).append("; ");
-            return new SimpleStringProperty(sb.toString());
-        });
-
-        conflictTable.getColumns().addAll(sevCol, descCol, altCol);
-        conflictTable.setId("conflictTable");
-        conflictTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-
-        // Empty state
-        Label emptyLabel = new Label("\u2705  No conflicts detected.\nClick 'Analyze Conflicts' to scan for scheduling issues.");
-        emptyLabel.getStyleClass().add("empty-state-label");
-        emptyLabel.setWrapText(true);
-        conflictTable.setPlaceholder(emptyLabel);
-
-        // Double-click to reassign
-        conflictTable.setRowFactory(tv -> {
-            TableRow<ConflictResult> row = new TableRow<>();
-            row.setOnMouseClicked(event -> {
-                if (event.getClickCount() == 2 && !row.isEmpty()) {
-                    handleReassign(row.getItem());
-                }
-            });
-            return row;
-        });
-
-        VBox.setVgrow(conflictTable, Priority.ALWAYS);
-        box.getChildren().addAll(conflictSummaryLabel, conflictTable);
-        return box;
-    }
-
     // ========== DATA ==========
 
     private void refreshData() {
@@ -482,7 +331,7 @@ public class DashboardController {
             }
 
             List<ScheduledEvent> sortedEvents = sortEventsChronologically(task.getValue());
-            eventTable.setItems(FXCollections.observableArrayList(sortedEvents));
+            scheduleView.getEventTable().setItems(FXCollections.observableArrayList(sortedEvents));
             statusLabel.setText("Loaded " + sortedEvents.size() + " events.");
             if (onComplete != null) {
                 onComplete.run();
@@ -669,12 +518,12 @@ public class DashboardController {
             progressBar.setVisible(false);
             progressBar.setProgress(0);
             List<ConflictResult> conflicts = task.getValue();
-            conflictTable.setItems(FXCollections.observableArrayList(conflicts));
+            conflictView.getConflictTable().setItems(FXCollections.observableArrayList(conflicts));
 
             long hard = conflicts.stream().filter(c -> c.getSeverity() == Severity.HARD_OVERLAP).count();
                 long professorOverlap = conflicts.stream().filter(c -> c.getSeverity() == Severity.PROFESSOR_OVERLAP).count();
             long tight = conflicts.stream().filter(c -> c.getSeverity() == Severity.TIGHT_TRANSITION).count();
-            conflictSummaryLabel.setText(String.format(
+                conflictView.getConflictSummaryLabel().setText(String.format(
                     "Total: %d conflicts (%d room overlaps, %d professor overlaps, %d tight transitions)",
                     conflicts.size(), hard, professorOverlap, tight));
 
