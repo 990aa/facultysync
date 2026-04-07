@@ -3,6 +3,7 @@ package edu.facultysync.db;
 import edu.facultysync.model.ScheduledEvent;
 import edu.facultysync.model.ScheduledEvent.EventType;
 
+import java.sql.Connection;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +17,8 @@ public class ScheduledEventDAO {
 
     public ScheduledEvent insert(ScheduledEvent event) throws SQLException {
         String sql = "INSERT INTO scheduled_events (course_id, loc_id, event_type, start_epoch, end_epoch) VALUES (?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = dbManager.getConnection()
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn
                 .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, event.getCourseId());
             if (event.getLocId() != null) ps.setInt(2, event.getLocId());
@@ -35,7 +37,8 @@ public class ScheduledEventDAO {
     public ScheduledEvent findById(int id) throws SQLException {
         String sql = "SELECT event_id, course_id, loc_id, event_type, start_epoch, end_epoch "
                 + "FROM scheduled_events WHERE event_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -48,7 +51,8 @@ public class ScheduledEventDAO {
         List<ScheduledEvent> list = new ArrayList<>();
         String sql = "SELECT event_id, course_id, loc_id, event_type, start_epoch, end_epoch "
                 + "FROM scheduled_events ORDER BY start_epoch";
-        try (Statement stmt = dbManager.getConnection().createStatement();
+        try (Connection conn = dbManager.getConnection();
+             Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) list.add(map(rs));
         }
@@ -59,7 +63,8 @@ public class ScheduledEventDAO {
         List<ScheduledEvent> list = new ArrayList<>();
         String sql = "SELECT event_id, course_id, loc_id, event_type, start_epoch, end_epoch "
                 + "FROM scheduled_events WHERE start_epoch < ? AND end_epoch > ? ORDER BY start_epoch";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, endEpoch);
             ps.setLong(2, startEpoch);
             try (ResultSet rs = ps.executeQuery()) {
@@ -73,7 +78,8 @@ public class ScheduledEventDAO {
         List<ScheduledEvent> list = new ArrayList<>();
         String sql = "SELECT event_id, course_id, loc_id, event_type, start_epoch, end_epoch "
                 + "FROM scheduled_events WHERE loc_id = ? ORDER BY start_epoch";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, locId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) list.add(map(rs));
@@ -86,7 +92,8 @@ public class ScheduledEventDAO {
         List<ScheduledEvent> list = new ArrayList<>();
         String sql = "SELECT event_id, course_id, loc_id, event_type, start_epoch, end_epoch "
                 + "FROM scheduled_events WHERE course_id = ? ORDER BY start_epoch";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, courseId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) list.add(map(rs));
@@ -102,7 +109,8 @@ public class ScheduledEventDAO {
         List<ScheduledEvent> list = new ArrayList<>();
         String sql = "SELECT event_id, course_id, loc_id, event_type, start_epoch, end_epoch "
                 + "FROM scheduled_events WHERE loc_id = ? AND start_epoch < ? AND end_epoch > ? ORDER BY start_epoch";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, locId);
             ps.setLong(2, endEpoch);
             ps.setLong(3, startEpoch);
@@ -116,7 +124,8 @@ public class ScheduledEventDAO {
     public void update(ScheduledEvent event) throws SQLException {
         String sql = "UPDATE scheduled_events SET course_id = ?, loc_id = ?, event_type = ?, "
                 + "start_epoch = ?, end_epoch = ? WHERE event_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, event.getCourseId());
             if (event.getLocId() != null) ps.setInt(2, event.getLocId());
             else ps.setNull(2, Types.INTEGER);
@@ -130,7 +139,8 @@ public class ScheduledEventDAO {
 
     public void delete(int id) throws SQLException {
         String sql = "DELETE FROM scheduled_events WHERE event_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }

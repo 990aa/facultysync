@@ -10,6 +10,8 @@ public class ConflictResult {
     public enum Severity {
         /** Hard overlap – two events share the same time and location. */
         HARD_OVERLAP,
+        /** Hard overlap – same professor is booked for overlapping events. */
+        PROFESSOR_OVERLAP,
         /** Tight transition – professor must move between buildings with little gap. */
         TIGHT_TRANSITION
     }

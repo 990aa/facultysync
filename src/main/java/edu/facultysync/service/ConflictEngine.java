@@ -52,6 +52,7 @@ public class ConflictEngine {
      */
     public List<ConflictResult> analyze(List<ScheduledEvent> events) throws SQLException {
         List<ConflictResult> conflicts = new ArrayList<>();
+        Set<String> overlapPairKeys = new HashSet<>();
 
         // 1. Room-based overlap detection using IntervalTree per location
         Map<Integer, List<ScheduledEvent>> byLocation = events.stream()
@@ -71,6 +72,7 @@ public class ConflictEngine {
                         loc != null ? loc.getDisplayName() : locId,
                         formatEvent(a), formatEvent(b));
                 ConflictResult cr = new ConflictResult(a, b, Severity.HARD_OVERLAP, desc);
+                overlapPairKeys.add(pairKey(a, b));
 
                 // Suggest alternatives
                 int minCap = getMinCapacity(a, b);
@@ -84,7 +86,7 @@ public class ConflictEngine {
             }
         }
 
-        // 2. Professor-based tight-transition detection
+        // 2. Professor-based hard overlap detection (double-booking)
         Map<Integer, List<ScheduledEvent>> byProf = new HashMap<>();
         for (ScheduledEvent e : events) {
             Course c = cache.getCourse(e.getCourseId());
@@ -92,6 +94,38 @@ public class ConflictEngine {
                 byProf.computeIfAbsent(c.getProfId(), k -> new ArrayList<>()).add(e);
             }
         }
+
+        for (Map.Entry<Integer, List<ScheduledEvent>> entry : byProf.entrySet()) {
+            Integer profId = entry.getKey();
+            List<ScheduledEvent> profEvents = entry.getValue();
+            IntervalTree<ScheduledEvent> tree = new IntervalTree<>(profEvents);
+            List<List<ScheduledEvent>> overlaps = tree.findAllOverlaps();
+
+            for (List<ScheduledEvent> pair : overlaps) {
+                ScheduledEvent a = pair.get(0);
+                ScheduledEvent b = pair.get(1);
+                String key = pairKey(a, b);
+                if (overlapPairKeys.contains(key)) {
+                    continue;
+                }
+
+                String professorName = a.getProfessorName();
+                if (professorName == null || professorName.isBlank()) {
+                    Professor professor = cache.getProfessor(profId);
+                    professorName = professor != null ? professor.getName() : "Professor";
+                }
+
+                String desc = String.format(
+                        "Professor %s is double-booked: %s overlaps with %s",
+                        professorName,
+                        formatEvent(a),
+                        formatEvent(b)
+                );
+                conflicts.add(new ConflictResult(a, b, Severity.PROFESSOR_OVERLAP, desc));
+            }
+        }
+
+        // 3. Professor-based tight-transition detection
         for (Map.Entry<Integer, List<ScheduledEvent>> entry : byProf.entrySet()) {
             List<ScheduledEvent> profEvents = entry.getValue();
             profEvents.sort(Comparator.comparingLong(ScheduledEvent::getStart));
@@ -169,5 +203,23 @@ public class ConflictEngine {
     private int getRequiredCapacity(ScheduledEvent event) {
         Course c = cache.getCourse(event.getCourseId());
         return (c != null && c.getEnrollmentCount() != null) ? c.getEnrollmentCount() : 0;
+    }
+
+    private String pairKey(ScheduledEvent a, ScheduledEvent b) {
+        Integer aId = a != null ? a.getEventId() : null;
+        Integer bId = b != null ? b.getEventId() : null;
+
+        if (aId == null || bId == null) {
+            long startA = a != null ? a.getStart() : 0;
+            long startB = b != null ? b.getStart() : 0;
+            if (startA <= startB) {
+                return startA + "-" + startB + "-ephemeral";
+            }
+            return startB + "-" + startA + "-ephemeral";
+        }
+
+        int first = Math.min(aId, bId);
+        int second = Math.max(aId, bId);
+        return first + ":" + second;
     }
 }

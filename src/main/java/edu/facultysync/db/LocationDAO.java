@@ -2,6 +2,7 @@ package edu.facultysync.db;
 
 import edu.facultysync.model.Location;
 
+import java.sql.Connection;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +16,8 @@ public class LocationDAO {
 
     public Location insert(Location loc) throws SQLException {
         String sql = "INSERT INTO locations (building, room_number, capacity, has_projector) VALUES (?, ?, ?, ?)";
-        try (PreparedStatement ps = dbManager.getConnection()
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn
                 .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, loc.getBuilding());
             ps.setString(2, loc.getRoomNumber());
@@ -33,7 +35,8 @@ public class LocationDAO {
 
     public Location findById(int id) throws SQLException {
         String sql = "SELECT loc_id, building, room_number, capacity, has_projector FROM locations WHERE loc_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -45,7 +48,8 @@ public class LocationDAO {
     public List<Location> findAll() throws SQLException {
         List<Location> list = new ArrayList<>();
         String sql = "SELECT loc_id, building, room_number, capacity, has_projector FROM locations ORDER BY building, room_number";
-        try (Statement stmt = dbManager.getConnection().createStatement();
+        try (Connection conn = dbManager.getConnection();
+             Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) list.add(map(rs));
         }
@@ -63,7 +67,8 @@ public class LocationDAO {
                 + "  WHERE loc_id IS NOT NULL AND start_epoch < ? AND end_epoch > ?"
                 + ") ORDER BY capacity";
         List<Location> list = new ArrayList<>();
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, minCapacity);
             ps.setLong(2, endEpoch);
             ps.setLong(3, startEpoch);
@@ -76,7 +81,8 @@ public class LocationDAO {
 
     public void update(Location loc) throws SQLException {
         String sql = "UPDATE locations SET building = ?, room_number = ?, capacity = ?, has_projector = ? WHERE loc_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, loc.getBuilding());
             ps.setString(2, loc.getRoomNumber());
             if (loc.getCapacity() != null) ps.setInt(3, loc.getCapacity());
@@ -90,7 +96,8 @@ public class LocationDAO {
 
     public void delete(int id) throws SQLException {
         String sql = "DELETE FROM locations WHERE loc_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }
