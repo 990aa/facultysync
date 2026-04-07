@@ -1,5 +1,6 @@
 package edu.facultysync.ui;
 
+import edu.facultysync.core.AppModule;
 import edu.facultysync.db.*;
 import edu.facultysync.io.CsvImporter;
 import edu.facultysync.io.ReportExporter;
@@ -63,6 +64,22 @@ public class DashboardController {
     private HomePage homePage;
     private CalendarView calendarView;
     private AnalyticsView analyticsView;
+
+    public DashboardController(AppModule appModule, Stage stage) throws SQLException {
+        this.dbManager = appModule.dbManager();
+        this.stage = stage;
+        this.cache = appModule.cache();
+        this.conflictEngine = appModule.conflictEngine();
+
+        root = buildLayout();
+
+        rootStack = new StackPane(root);
+        rootStack.getStyleClass().add("root-stack");
+        ToastNotification.initialize(rootStack);
+        initializeBusyOverlay();
+
+        refreshData();
+    }
 
     public DashboardController(DatabaseManager dbManager, Stage stage) throws SQLException {
         this.dbManager = dbManager;
