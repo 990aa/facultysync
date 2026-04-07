@@ -4,6 +4,7 @@ import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.ScheduledEventDAO;
 import edu.facultysync.model.ScheduledEvent;
 import edu.facultysync.service.DataCache;
+import edu.facultysync.util.TimePolicy;
 
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -14,9 +15,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.*;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -24,8 +23,6 @@ import java.util.List;
  * quick-action navigation, and recent activity.
  */
 public class HomePage {
-
-    private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     private final DatabaseManager dbManager;
     private final DataCache cache;
@@ -308,7 +305,7 @@ public class HomePage {
 
         String time = "";
         if (ev.getStartEpoch() != null) {
-            time = DATE_FMT.format(new Date(ev.getStartEpoch()));
+            time = TimePolicy.formatEpoch(ev.getStartEpoch());
         }
         Label timeLabel = new Label(time);
         timeLabel.getStyleClass().add("activity-time");

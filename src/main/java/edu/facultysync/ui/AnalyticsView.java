@@ -5,6 +5,7 @@ import edu.facultysync.db.ScheduledEventDAO;
 import edu.facultysync.model.*;
 import edu.facultysync.service.ConflictEngine;
 import edu.facultysync.service.DataCache;
+import edu.facultysync.util.TimePolicy;
 
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -15,6 +16,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.*;
 
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.*;
 
 /**
@@ -317,9 +319,9 @@ public class AnalyticsView {
         // Events by hour
         for (ScheduledEvent ev : events) {
             if (ev.getStartEpoch() != null) {
-                Calendar cal = Calendar.getInstance();
-                cal.setTimeInMillis(ev.getStartEpoch());
-                int hour = cal.get(Calendar.HOUR_OF_DAY);
+                int hour = Instant.ofEpochMilli(ev.getStartEpoch())
+                        .atZone(TimePolicy.zone())
+                        .getHour();
                 data.eventsByHour.merge(hour, 1, Integer::sum);
             }
         }

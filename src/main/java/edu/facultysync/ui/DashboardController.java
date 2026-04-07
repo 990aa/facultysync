@@ -777,6 +777,592 @@ public class DashboardController {
         });
     }
 
+    private void handleManageDepartments() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Manage Departments");
+        dialog.setHeaderText("Edit or delete departments");
+
+        TableView<Department> table = new TableView<>();
+        TableColumn<Department, String> nameCol = new TableColumn<>("Name");
+        nameCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getName()));
+        nameCol.setPrefWidth(380);
+        table.getColumns().add(nameCol);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
+                cache.getAllDepartments().values().stream()
+                        .sorted(Comparator.comparing(Department::getName, String.CASE_INSENSITIVE_ORDER))
+                        .toList()
+        ));
+        reload.run();
+
+        Button addBtn = new Button("Add");
+        addBtn.setOnAction(e -> {
+            TextInputDialog input = new TextInputDialog();
+            input.setTitle("Add Department");
+            input.setHeaderText("Department name");
+            input.setContentText("Name:");
+            input.showAndWait().ifPresent(name -> {
+                String trimmed = name.trim();
+                if (trimmed.isEmpty()) {
+                    ToastNotification.show("Department name cannot be empty.", ToastNotification.ToastType.WARNING);
+                    return;
+                }
+                runDbTask("AddDepartmentFromManager", "Adding department...", () -> {
+                    Department created = new DepartmentDAO(dbManager).insert(new Department(null, trimmed));
+                    cache.refresh();
+                    return created;
+                }, created -> {
+                    refreshAllViews();
+                    reload.run();
+                });
+            });
+        });
+
+        Button editBtn = new Button("Edit");
+        editBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        editBtn.setOnAction(e -> {
+            Department selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            TextInputDialog input = new TextInputDialog(selected.getName());
+            input.setTitle("Edit Department");
+            input.setHeaderText("Update department name");
+            input.setContentText("Name:");
+            input.showAndWait().ifPresent(name -> {
+                String trimmed = name.trim();
+                if (trimmed.isEmpty()) {
+                    ToastNotification.show("Department name cannot be empty.", ToastNotification.ToastType.WARNING);
+                    return;
+                }
+                runDbTask("EditDepartmentFromManager", "Saving department...", () -> {
+                    selected.setName(trimmed);
+                    new DepartmentDAO(dbManager).update(selected);
+                    cache.refresh();
+                    return selected;
+                }, updated -> {
+                    refreshAllViews();
+                    reload.run();
+                });
+            });
+        });
+
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        deleteBtn.setOnAction(e -> {
+            Department selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Delete Department");
+            confirm.setHeaderText("Delete " + selected.getName() + "?");
+            confirm.setContentText("This cascades to professors/courses/events linked to this department.");
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn != ButtonType.OK) {
+                    return;
+                }
+                runDbTask("DeleteDepartmentFromManager", "Deleting department...", () -> {
+                    new DepartmentDAO(dbManager).delete(selected.getDeptId());
+                    cache.refresh();
+                    return selected.getDeptId();
+                }, id -> {
+                    refreshAllViews();
+                    reload.run();
+                });
+            });
+        });
+
+        HBox actions = new HBox(8, addBtn, editBtn, deleteBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(10, table, actions);
+        content.setPadding(new Insets(8));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().setPrefSize(520, 420);
+        dialog.showAndWait();
+    }
+
+    private void handleManageProfessors() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Manage Professors");
+        dialog.setHeaderText("Edit or delete professors");
+
+        TableView<Professor> table = new TableView<>();
+        TableColumn<Professor, String> nameCol = new TableColumn<>("Name");
+        nameCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getName()));
+
+        TableColumn<Professor, String> deptCol = new TableColumn<>("Department");
+        deptCol.setCellValueFactory(cd -> {
+            Department dept = cache.getDepartment(cd.getValue().getDeptId());
+            return new SimpleStringProperty(dept != null ? dept.getName() : "Unknown");
+        });
+
+        table.getColumns().addAll(nameCol, deptCol);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
+                cache.getAllProfessors().values().stream()
+                        .sorted(Comparator.comparing(Professor::getName, String.CASE_INSENSITIVE_ORDER))
+                        .toList()
+        ));
+        reload.run();
+
+        Button addBtn = new Button("Add");
+        addBtn.setOnAction(e -> openProfessorEditor(null).ifPresent(prof ->
+                runDbTask("AddProfessorFromManager", "Adding professor...", () -> {
+                    Professor created = new ProfessorDAO(dbManager).insert(prof);
+                    cache.refresh();
+                    return created;
+                }, created -> {
+                    refreshAllViews();
+                    reload.run();
+                })
+        ));
+
+        Button editBtn = new Button("Edit");
+        editBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        editBtn.setOnAction(e -> {
+            Professor selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            openProfessorEditor(selected).ifPresent(updated ->
+                    runDbTask("EditProfessorFromManager", "Saving professor...", () -> {
+                        new ProfessorDAO(dbManager).update(updated);
+                        cache.refresh();
+                        return updated;
+                    }, result -> {
+                        refreshAllViews();
+                        reload.run();
+                    })
+            );
+        });
+
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        deleteBtn.setOnAction(e -> {
+            Professor selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Delete Professor");
+            confirm.setHeaderText("Delete " + selected.getName() + "?");
+            confirm.setContentText("This cascades to courses and events linked to this professor.");
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn != ButtonType.OK) {
+                    return;
+                }
+                runDbTask("DeleteProfessorFromManager", "Deleting professor...", () -> {
+                    new ProfessorDAO(dbManager).delete(selected.getProfId());
+                    cache.refresh();
+                    return selected.getProfId();
+                }, id -> {
+                    refreshAllViews();
+                    reload.run();
+                });
+            });
+        });
+
+        HBox actions = new HBox(8, addBtn, editBtn, deleteBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(10, table, actions);
+        content.setPadding(new Insets(8));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().setPrefSize(600, 430);
+        dialog.showAndWait();
+    }
+
+    private void handleManageCourses() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Manage Courses");
+        dialog.setHeaderText("Edit or delete courses");
+
+        TableView<Course> table = new TableView<>();
+        TableColumn<Course, String> codeCol = new TableColumn<>("Code");
+        codeCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getCourseCode()));
+
+        TableColumn<Course, String> profCol = new TableColumn<>("Professor");
+        profCol.setCellValueFactory(cd -> {
+            Professor professor = cache.getProfessor(cd.getValue().getProfId());
+            return new SimpleStringProperty(professor != null ? professor.getName() : "Unknown");
+        });
+
+        TableColumn<Course, String> enrollmentCol = new TableColumn<>("Enrollment");
+        enrollmentCol.setCellValueFactory(cd -> new SimpleStringProperty(
+                cd.getValue().getEnrollmentCount() != null
+                        ? String.valueOf(cd.getValue().getEnrollmentCount())
+                        : ""
+        ));
+
+        table.getColumns().addAll(codeCol, profCol, enrollmentCol);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
+                cache.getAllCourses().values().stream()
+                        .sorted(Comparator.comparing(Course::getCourseCode, String.CASE_INSENSITIVE_ORDER))
+                        .toList()
+        ));
+        reload.run();
+
+        Button addBtn = new Button("Add");
+        addBtn.setOnAction(e -> openCourseEditor(null).ifPresent(course ->
+                runDbTask("AddCourseFromManager", "Adding course...", () -> {
+                    Course created = new CourseDAO(dbManager).insert(course);
+                    cache.refresh();
+                    return created;
+                }, created -> {
+                    refreshAllViews();
+                    reload.run();
+                })
+        ));
+
+        Button editBtn = new Button("Edit");
+        editBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        editBtn.setOnAction(e -> {
+            Course selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            openCourseEditor(selected).ifPresent(updated ->
+                    runDbTask("EditCourseFromManager", "Saving course...", () -> {
+                        new CourseDAO(dbManager).update(updated);
+                        cache.refresh();
+                        return updated;
+                    }, result -> {
+                        refreshAllViews();
+                        reload.run();
+                    })
+            );
+        });
+
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        deleteBtn.setOnAction(e -> {
+            Course selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Delete Course");
+            confirm.setHeaderText("Delete " + selected.getCourseCode() + "?");
+            confirm.setContentText("This cascades to events linked to this course.");
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn != ButtonType.OK) {
+                    return;
+                }
+                runDbTask("DeleteCourseFromManager", "Deleting course...", () -> {
+                    new CourseDAO(dbManager).delete(selected.getCourseId());
+                    cache.refresh();
+                    return selected.getCourseId();
+                }, id -> {
+                    refreshAllViews();
+                    reload.run();
+                });
+            });
+        });
+
+        HBox actions = new HBox(8, addBtn, editBtn, deleteBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(10, table, actions);
+        content.setPadding(new Insets(8));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().setPrefSize(700, 430);
+        dialog.showAndWait();
+    }
+
+    private void handleManageLocations() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Manage Locations");
+        dialog.setHeaderText("Edit or delete locations");
+
+        TableView<Location> table = new TableView<>();
+        TableColumn<Location, String> buildingCol = new TableColumn<>("Building");
+        buildingCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getBuilding()));
+
+        TableColumn<Location, String> roomCol = new TableColumn<>("Room");
+        roomCol.setCellValueFactory(cd -> new SimpleStringProperty(cd.getValue().getRoomNumber()));
+
+        TableColumn<Location, String> capacityCol = new TableColumn<>("Capacity");
+        capacityCol.setCellValueFactory(cd -> new SimpleStringProperty(
+                cd.getValue().getCapacity() != null ? String.valueOf(cd.getValue().getCapacity()) : ""
+        ));
+
+        TableColumn<Location, String> projectorCol = new TableColumn<>("Projector");
+        projectorCol.setCellValueFactory(cd -> new SimpleStringProperty(
+                cd.getValue().getHasProjector() != null && cd.getValue().getHasProjector() == 1 ? "Yes" : "No"
+        ));
+
+        table.getColumns().addAll(buildingCol, roomCol, capacityCol, projectorCol);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+
+        Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
+                cache.getAllLocations().values().stream()
+                        .sorted(Comparator.comparing(Location::getBuilding, String.CASE_INSENSITIVE_ORDER)
+                                .thenComparing(Location::getRoomNumber, String.CASE_INSENSITIVE_ORDER))
+                        .toList()
+        ));
+        reload.run();
+
+        Button addBtn = new Button("Add");
+        addBtn.setOnAction(e -> openLocationEditor(null).ifPresent(loc ->
+                runDbTask("AddLocationFromManager", "Adding location...", () -> {
+                    Location created = new LocationDAO(dbManager).insert(loc);
+                    cache.refresh();
+                    return created;
+                }, created -> {
+                    refreshAllViews();
+                    reload.run();
+                })
+        ));
+
+        Button editBtn = new Button("Edit");
+        editBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        editBtn.setOnAction(e -> {
+            Location selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            openLocationEditor(selected).ifPresent(updated ->
+                    runDbTask("EditLocationFromManager", "Saving location...", () -> {
+                        new LocationDAO(dbManager).update(updated);
+                        cache.refresh();
+                        return updated;
+                    }, result -> {
+                        refreshAllViews();
+                        reload.run();
+                    })
+            );
+        });
+
+        Button deleteBtn = new Button("Delete");
+        deleteBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        deleteBtn.setOnAction(e -> {
+            Location selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                return;
+            }
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
+            confirm.setTitle("Delete Location");
+            confirm.setHeaderText("Delete " + selected.getDisplayName() + "?");
+            confirm.setContentText("Events in this room will be converted to online (location set to null).");
+            confirm.showAndWait().ifPresent(btn -> {
+                if (btn != ButtonType.OK) {
+                    return;
+                }
+                runDbTask("DeleteLocationFromManager", "Deleting location...", () -> {
+                    new LocationDAO(dbManager).delete(selected.getLocId());
+                    cache.refresh();
+                    return selected.getLocId();
+                }, id -> {
+                    refreshAllViews();
+                    reload.run();
+                });
+            });
+        });
+
+        HBox actions = new HBox(8, addBtn, editBtn, deleteBtn);
+        actions.setAlignment(Pos.CENTER_LEFT);
+
+        VBox content = new VBox(10, table, actions);
+        content.setPadding(new Insets(8));
+        VBox.setVgrow(table, Priority.ALWAYS);
+
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+        dialog.getDialogPane().setPrefSize(760, 440);
+        dialog.showAndWait();
+    }
+
+    private Optional<Professor> openProfessorEditor(Professor existing) {
+        if (cache.getAllDepartments().isEmpty()) {
+            ToastNotification.show("Create a department first.", ToastNotification.ToastType.WARNING);
+            return Optional.empty();
+        }
+
+        Dialog<Professor> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Professor" : "Edit Professor");
+        dialog.setHeaderText(existing == null ? "Professor details" : "Update professor details");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(10));
+
+        TextField nameField = new TextField(existing != null ? existing.getName() : "");
+        ComboBox<Department> deptBox = new ComboBox<>();
+        deptBox.getItems().addAll(cache.getAllDepartments().values());
+        if (existing != null && existing.getDeptId() != null) {
+            cache.getAllDepartments().values().stream()
+                    .filter(d -> Objects.equals(d.getDeptId(), existing.getDeptId()))
+                    .findFirst()
+                    .ifPresent(deptBox::setValue);
+        }
+        if (deptBox.getValue() == null && !deptBox.getItems().isEmpty()) {
+            deptBox.getSelectionModel().selectFirst();
+        }
+
+        grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
+        grid.add(new Label("Department:"), 0, 1); grid.add(deptBox, 1, 1);
+        dialog.getDialogPane().setContent(grid);
+
+        ButtonType saveBtn = new ButtonType(existing == null ? "Add" : "Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        Node saveNode = dialog.getDialogPane().lookupButton(saveBtn);
+        saveNode.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> nameField.getText().trim().isEmpty() || deptBox.getValue() == null,
+                nameField.textProperty(),
+                deptBox.valueProperty()
+        ));
+
+        dialog.setResultConverter(btn -> {
+            if (btn != saveBtn) {
+                return null;
+            }
+            return new Professor(
+                    existing != null ? existing.getProfId() : null,
+                    nameField.getText().trim(),
+                    deptBox.getValue().getDeptId()
+            );
+        });
+
+        return dialog.showAndWait();
+    }
+
+    private Optional<Course> openCourseEditor(Course existing) {
+        if (cache.getAllProfessors().isEmpty()) {
+            ToastNotification.show("Create a professor first.", ToastNotification.ToastType.WARNING);
+            return Optional.empty();
+        }
+
+        Dialog<Course> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Course" : "Edit Course");
+        dialog.setHeaderText(existing == null ? "Course details" : "Update course details");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(10));
+
+        TextField codeField = new TextField(existing != null ? existing.getCourseCode() : "");
+        ComboBox<Professor> profBox = new ComboBox<>();
+        profBox.getItems().addAll(cache.getAllProfessors().values());
+        if (existing != null && existing.getProfId() != null) {
+            cache.getAllProfessors().values().stream()
+                    .filter(p -> Objects.equals(p.getProfId(), existing.getProfId()))
+                    .findFirst()
+                    .ifPresent(profBox::setValue);
+        }
+        if (profBox.getValue() == null && !profBox.getItems().isEmpty()) {
+            profBox.getSelectionModel().selectFirst();
+        }
+
+        TextField enrollmentField = new TextField(existing != null && existing.getEnrollmentCount() != null
+                ? String.valueOf(existing.getEnrollmentCount())
+                : "");
+        enrollmentField.setPromptText("Enrollment count (required)");
+
+        grid.add(new Label("Code:"), 0, 0); grid.add(codeField, 1, 0);
+        grid.add(new Label("Professor:"), 0, 1); grid.add(profBox, 1, 1);
+        grid.add(new Label("Enrollment:"), 0, 2); grid.add(enrollmentField, 1, 2);
+        dialog.getDialogPane().setContent(grid);
+
+        ButtonType saveBtn = new ButtonType(existing == null ? "Add" : "Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        Node saveNode = dialog.getDialogPane().lookupButton(saveBtn);
+        saveNode.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> codeField.getText().trim().isEmpty()
+                        || profBox.getValue() == null
+                        || !isPositiveInteger(enrollmentField.getText().trim()),
+                codeField.textProperty(),
+                profBox.valueProperty(),
+                enrollmentField.textProperty()
+        ));
+
+        dialog.setResultConverter(btn -> {
+            if (btn != saveBtn) {
+                return null;
+            }
+            return new Course(
+                    existing != null ? existing.getCourseId() : null,
+                    codeField.getText().trim(),
+                    profBox.getValue().getProfId(),
+                    Integer.parseInt(enrollmentField.getText().trim())
+            );
+        });
+
+        return dialog.showAndWait();
+    }
+
+    private Optional<Location> openLocationEditor(Location existing) {
+        Dialog<Location> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Location" : "Edit Location");
+        dialog.setHeaderText(existing == null ? "Location details" : "Update location details");
+
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(10));
+
+        TextField buildingField = new TextField(existing != null ? existing.getBuilding() : "");
+        TextField roomField = new TextField(existing != null ? existing.getRoomNumber() : "");
+        TextField capacityField = new TextField(existing != null && existing.getCapacity() != null
+                ? String.valueOf(existing.getCapacity())
+                : "");
+        capacityField.setPromptText("Capacity (required)");
+        CheckBox projectorBox = new CheckBox("Has Projector");
+        projectorBox.setSelected(existing != null && existing.getHasProjector() != null && existing.getHasProjector() == 1);
+
+        grid.add(new Label("Building:"), 0, 0); grid.add(buildingField, 1, 0);
+        grid.add(new Label("Room:"), 0, 1); grid.add(roomField, 1, 1);
+        grid.add(new Label("Capacity:"), 0, 2); grid.add(capacityField, 1, 2);
+        grid.add(projectorBox, 1, 3);
+        dialog.getDialogPane().setContent(grid);
+
+        ButtonType saveBtn = new ButtonType(existing == null ? "Add" : "Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+
+        Node saveNode = dialog.getDialogPane().lookupButton(saveBtn);
+        saveNode.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> buildingField.getText().trim().isEmpty()
+                        || roomField.getText().trim().isEmpty()
+                        || !isPositiveInteger(capacityField.getText().trim()),
+                buildingField.textProperty(),
+                roomField.textProperty(),
+                capacityField.textProperty()
+        ));
+
+        dialog.setResultConverter(btn -> {
+            if (btn != saveBtn) {
+                return null;
+            }
+            return new Location(
+                    existing != null ? existing.getLocId() : null,
+                    buildingField.getText().trim(),
+                    roomField.getText().trim(),
+                    Integer.parseInt(capacityField.getText().trim()),
+                    projectorBox.isSelected() ? 1 : 0
+            );
+        });
+
+        return dialog.showAndWait();
+    }
+
     // ========== ADD HANDLERS ==========
 
     private void handleAddDepartment() {
@@ -1271,6 +1857,23 @@ public class DashboardController {
         Thread thread = new Thread(task, threadName);
         thread.setDaemon(true);
         thread.start();
+    }
+
+    private boolean isPositiveInteger(String text) {
+        if (text == null || text.isBlank()) {
+            return false;
+        }
+        try {
+            return Integer.parseInt(text.trim()) > 0;
+        } catch (NumberFormatException ex) {
+            return false;
+        }
+    }
+
+    private boolean isValidDateTimeRange(String startText, String endText) {
+        Long start = TimePolicy.parseDateTime(startText);
+        Long end = TimePolicy.parseDateTime(endText);
+        return start != null && end != null && end > start;
     }
 
     private void showImportDiagnostics(CsvImporter.ImportReport report) {

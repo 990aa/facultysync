@@ -3,10 +3,9 @@ package edu.facultysync.io;
 import edu.facultysync.model.ConflictResult;
 import edu.facultysync.model.Location;
 import edu.facultysync.model.ScheduledEvent;
+import edu.facultysync.util.TimePolicy;
 
 import java.io.*;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -14,8 +13,6 @@ import java.util.List;
  * Uses BufferedWriter / FileWriter for efficient I/O.
  */
 public class ReportExporter {
-
-    private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     /**
      * Export a full conflict report as a formatted text file.
@@ -26,7 +23,7 @@ public class ReportExporter {
             bw.newLine();
             bw.write("           FACULTYSYNC - CONFLICT REPORT");
             bw.newLine();
-            bw.write("           Generated: " + DATE_FMT.format(new Date()));
+            bw.write("           Generated: " + TimePolicy.formatEpochWithZone(System.currentTimeMillis()));
             bw.newLine();
             bw.write("=============================================================");
             bw.newLine();
@@ -94,8 +91,8 @@ public class ReportExporter {
                         csvSafe(e.getCourseCode()),
                         e.getEventType() != null ? e.getEventType().getDisplay() : "",
                         csvSafe(e.getLocationName()),
-                        e.getStartEpoch() != null ? DATE_FMT.format(new Date(e.getStartEpoch())) : "",
-                        e.getEndEpoch() != null ? DATE_FMT.format(new Date(e.getEndEpoch())) : "",
+                        TimePolicy.formatEpoch(e.getStartEpoch()),
+                        TimePolicy.formatEpoch(e.getEndEpoch()),
                         csvSafe(e.getProfessorName())
                 ));
                 bw.newLine();
@@ -109,8 +106,8 @@ public class ReportExporter {
         String type = e.getEventType() != null ? e.getEventType().getDisplay() : "Event";
         String time = "";
         if (e.getStartEpoch() != null && e.getEndEpoch() != null) {
-            time = " (" + DATE_FMT.format(new Date(e.getStartEpoch()))
-                    + " to " + DATE_FMT.format(new Date(e.getEndEpoch())) + ")";
+            time = " (" + TimePolicy.formatEpoch(e.getStartEpoch())
+                + " to " + TimePolicy.formatEpoch(e.getEndEpoch()) + ")";
         }
         String loc = e.getLocationName() != null ? " @ " + e.getLocationName() : "";
         return code + " " + type + time + loc;

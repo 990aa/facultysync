@@ -3,10 +3,9 @@ package edu.facultysync;
 import edu.facultysync.db.*;
 import edu.facultysync.model.*;
 import edu.facultysync.service.*;
+import edu.facultysync.util.TimePolicy;
 
 import java.sql.SQLException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -17,8 +16,6 @@ import java.util.List;
  * <p>Usage: {@code gradle seedAndResolve}</p>
  */
 public class SeedAndResolve {
-
-    private static final SimpleDateFormat FMT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     public static void main(String[] args) {
         System.out.println("=== FacultySync – Seed & Resolve Script ===\n");
@@ -129,7 +126,7 @@ public class SeedAndResolve {
                 String course = ev.getCourseCode() != null ? ev.getCourseCode() : "Course#" + ev.getCourseId();
                 String type = ev.getEventType() != null ? ev.getEventType().getDisplay() : "Event";
                 String loc = ev.getLocationName() != null ? ev.getLocationName() : "Online";
-                String time = ev.getStartEpoch() != null ? FMT.format(new Date(ev.getStartEpoch())) : "?";
+                String time = ev.getStartEpoch() != null ? TimePolicy.formatEpoch(ev.getStartEpoch()) : "?";
                 System.out.printf("    - %s %s @ %s (%s)%n", course, type, loc, time);
             }
         }

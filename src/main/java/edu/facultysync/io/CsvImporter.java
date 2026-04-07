@@ -3,14 +3,12 @@ package edu.facultysync.io;
 import edu.facultysync.db.*;
 import edu.facultysync.model.*;
 import edu.facultysync.model.ScheduledEvent.EventType;
+import edu.facultysync.util.TimePolicy;
 
 import java.io.*;
 import java.sql.SQLException;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,8 +23,6 @@ import java.util.Map;
  * <p>Missing building/room gracefully results in null loc_id (online event).
  */
 public class CsvImporter {
-
-    private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     private final DatabaseManager dbManager;
 
@@ -186,12 +182,14 @@ public class CsvImporter {
 
     private Long parseEpoch(String dateStr) {
         if (dateStr == null || dateStr.isEmpty()) return null;
+        Long parsed = TimePolicy.parseDateTime(dateStr);
+        if (parsed != null) {
+            return parsed;
+        }
         try {
-            Date d = DATE_FMT.parse(dateStr);
-            return d.getTime();
-        } catch (ParseException e) {
-            // Try epoch directly
-            try { return Long.parseLong(dateStr); } catch (NumberFormatException ex) { return null; }
+            return Long.parseLong(dateStr);
+        } catch (NumberFormatException ex) {
+            return null;
         }
     }
 
