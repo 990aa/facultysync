@@ -2,6 +2,7 @@ package edu.facultysync.db;
 
 import edu.facultysync.model.Department;
 
+import java.sql.Connection;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +16,8 @@ public class DepartmentDAO {
 
     public Department insert(Department dept) throws SQLException {
         String sql = "INSERT INTO departments (name) VALUES (?)";
-        try (PreparedStatement ps = dbManager.getConnection()
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn
                 .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, dept.getName());
             ps.executeUpdate();
@@ -28,7 +30,8 @@ public class DepartmentDAO {
 
     public Department findById(int id) throws SQLException {
         String sql = "SELECT dept_id, name FROM departments WHERE dept_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -40,7 +43,8 @@ public class DepartmentDAO {
     public List<Department> findAll() throws SQLException {
         List<Department> list = new ArrayList<>();
         String sql = "SELECT dept_id, name FROM departments ORDER BY name";
-        try (Statement stmt = dbManager.getConnection().createStatement();
+        try (Connection conn = dbManager.getConnection();
+             Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) list.add(map(rs));
         }
@@ -49,7 +53,8 @@ public class DepartmentDAO {
 
     public void update(Department dept) throws SQLException {
         String sql = "UPDATE departments SET name = ? WHERE dept_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, dept.getName());
             ps.setInt(2, dept.getDeptId());
             ps.executeUpdate();
@@ -58,7 +63,8 @@ public class DepartmentDAO {
 
     public void delete(int id) throws SQLException {
         String sql = "DELETE FROM departments WHERE dept_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }

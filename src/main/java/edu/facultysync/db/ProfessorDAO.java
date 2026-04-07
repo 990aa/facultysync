@@ -2,6 +2,7 @@ package edu.facultysync.db;
 
 import edu.facultysync.model.Professor;
 
+import java.sql.Connection;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,7 +16,8 @@ public class ProfessorDAO {
 
     public Professor insert(Professor prof) throws SQLException {
         String sql = "INSERT INTO professors (name, dept_id) VALUES (?, ?)";
-        try (PreparedStatement ps = dbManager.getConnection()
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn
                 .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, prof.getName());
             ps.setInt(2, prof.getDeptId());
@@ -29,7 +31,8 @@ public class ProfessorDAO {
 
     public Professor findById(int id) throws SQLException {
         String sql = "SELECT prof_id, name, dept_id FROM professors WHERE prof_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -41,7 +44,8 @@ public class ProfessorDAO {
     public List<Professor> findAll() throws SQLException {
         List<Professor> list = new ArrayList<>();
         String sql = "SELECT prof_id, name, dept_id FROM professors ORDER BY name";
-        try (Statement stmt = dbManager.getConnection().createStatement();
+        try (Connection conn = dbManager.getConnection();
+             Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) list.add(map(rs));
         }
@@ -51,7 +55,8 @@ public class ProfessorDAO {
     public List<Professor> findByDepartment(int deptId) throws SQLException {
         List<Professor> list = new ArrayList<>();
         String sql = "SELECT prof_id, name, dept_id FROM professors WHERE dept_id = ? ORDER BY name";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, deptId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) list.add(map(rs));
@@ -62,7 +67,8 @@ public class ProfessorDAO {
 
     public void update(Professor prof) throws SQLException {
         String sql = "UPDATE professors SET name = ?, dept_id = ? WHERE prof_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, prof.getName());
             ps.setInt(2, prof.getDeptId());
             ps.setInt(3, prof.getProfId());
@@ -72,7 +78,8 @@ public class ProfessorDAO {
 
     public void delete(int id) throws SQLException {
         String sql = "DELETE FROM professors WHERE prof_id = ?";
-        try (PreparedStatement ps = dbManager.getConnection().prepareStatement(sql)) {
+        try (Connection conn = dbManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }
