@@ -284,6 +284,34 @@ class SeedDataTest {
         assertTrue(tightTransitions >= 1, "Should restore at least 1 tight transition");
         }
 
+    @Test
+    void ensureIntentionalConflicts_handlesNormalizedCourseCodes() throws SQLException {
+        SeedData.seed(dbManager);
+
+        CourseDAO courseDao = new CourseDAO(dbManager);
+        Course cs101 = courseDao.findByCode("CS101");
+        assertNotNull(cs101);
+
+        // Simulate a user editing a demo course code format.
+        cs101.setCourseCode("CS 101");
+        courseDao.update(cs101);
+
+        edu.facultysync.service.DataCache cache = new edu.facultysync.service.DataCache(dbManager);
+        cache.refresh();
+        edu.facultysync.service.AutoResolver resolver = new edu.facultysync.service.AutoResolver(dbManager, cache);
+        resolver.resolveAll();
+
+        SeedData.ensureIntentionalConflicts(dbManager);
+
+        edu.facultysync.service.ConflictEngine engine = new edu.facultysync.service.ConflictEngine(dbManager, cache);
+        List<edu.facultysync.model.ConflictResult> conflicts = engine.analyzeAll();
+
+        long hardOverlaps = conflicts.stream()
+                .filter(c -> c.getSeverity() == edu.facultysync.model.ConflictResult.Severity.HARD_OVERLAP)
+                .count();
+        assertTrue(hardOverlaps >= 3, "Should restore hard overlaps even with normalized course code edits");
+    }
+
     // ===== Professor-Department associations =====
 
     @Test

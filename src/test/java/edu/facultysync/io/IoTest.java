@@ -23,7 +23,6 @@ class IoTest {
 
     private static DatabaseManager dbManager;
     private static DataCache cache;
-    private static int courseAId;
 
     @TempDir
     Path tempDir;
@@ -41,7 +40,7 @@ class IoTest {
 
         CourseDAO courseDAO = new CourseDAO(dbManager);
         Course cA = courseDAO.insert(new Course(null, "CS101", prof.getProfId(), 30));
-        courseAId = cA.getCourseId();
+        assertNotNull(cA.getCourseId());
 
         LocationDAO locDAO = new LocationDAO(dbManager);
         locDAO.insert(new Location(null, "Science Hall", "101", 50, 1));
@@ -223,6 +222,26 @@ class IoTest {
         importer.importFile(csv, null);
         int locCountAfter = new LocationDAO(dbManager).findAll().size();
         assertTrue(locCountAfter > locCountBefore);
+    }
+
+    @Test
+    void import_handlesQuotedCommaInBuildingName() throws Exception {
+        File csv = tempDir.resolve("quoted_comma.csv").toFile();
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(csv))) {
+            bw.write("course_code,event_type,building,room_number,start_datetime,end_datetime\n");
+            bw.write("CS101,Lecture,\"Engineering Building, North Wing\",A-101,2026-03-03 09:00,2026-03-03 10:00\n");
+        }
+
+        CsvImporter importer = new CsvImporter(dbManager);
+        List<ScheduledEvent> imported = importer.importFile(csv, null);
+
+        assertEquals(1, imported.size());
+        assertNotNull(imported.get(0).getLocId());
+
+        Location inserted = new LocationDAO(dbManager).findById(imported.get(0).getLocId());
+        assertNotNull(inserted);
+        assertEquals("Engineering Building, North Wing", inserted.getBuilding());
+        assertEquals("A-101", inserted.getRoomNumber());
     }
 
     // ===== ReportExporter =====

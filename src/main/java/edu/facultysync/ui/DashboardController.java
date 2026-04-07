@@ -1243,7 +1243,7 @@ public class DashboardController {
 
         TextField nameField = new TextField(existing != null ? existing.getName() : "");
         ComboBox<Department> deptBox = new ComboBox<>();
-        deptBox.getItems().addAll(cache.getAllDepartments().values());
+        deptBox.getItems().setAll(sortedDepartments());
         if (existing != null && existing.getDeptId() != null) {
             cache.getAllDepartments().values().stream()
                     .filter(d -> Objects.equals(d.getDeptId(), existing.getDeptId()))
@@ -1299,7 +1299,7 @@ public class DashboardController {
 
         TextField codeField = new TextField(existing != null ? existing.getCourseCode() : "");
         ComboBox<Professor> profBox = new ComboBox<>();
-        profBox.getItems().addAll(cache.getAllProfessors().values());
+        profBox.getItems().setAll(sortedProfessors());
         if (existing != null && existing.getProfId() != null) {
             cache.getAllProfessors().values().stream()
                     .filter(p -> Objects.equals(p.getProfId(), existing.getProfId()))
@@ -1447,7 +1447,7 @@ public class DashboardController {
         TextField nameField = new TextField();
         nameField.setPromptText("Name");
         ComboBox<Department> deptBox = new ComboBox<>();
-        deptBox.getItems().addAll(cache.getAllDepartments().values());
+        deptBox.getItems().setAll(sortedDepartments());
         if (!deptBox.getItems().isEmpty()) deptBox.getSelectionModel().selectFirst();
 
         grid.add(new Label("Name:"), 0, 0); grid.add(nameField, 1, 0);
@@ -1494,7 +1494,7 @@ public class DashboardController {
 
         TextField codeField = new TextField(); codeField.setPromptText("e.g. CS101");
         ComboBox<Professor> profBox = new ComboBox<>();
-        profBox.getItems().addAll(cache.getAllProfessors().values());
+        profBox.getItems().setAll(sortedProfessors());
         if (!profBox.getItems().isEmpty()) profBox.getSelectionModel().selectFirst();
         TextField enrollField = new TextField(); enrollField.setPromptText("Enrollment count (required)");
 
@@ -1610,7 +1610,7 @@ public class DashboardController {
         grid.setHgap(10); grid.setVgap(10); grid.setPadding(new Insets(10));
 
         ComboBox<Course> courseBox = new ComboBox<>();
-        courseBox.getItems().addAll(cache.getAllCourses().values());
+        courseBox.getItems().setAll(sortedCourses());
         if (!courseBox.getItems().isEmpty()) courseBox.getSelectionModel().selectFirst();
 
         ComboBox<String> typeBox = new ComboBox<>(FXCollections.observableArrayList("Lecture", "Exam", "Office Hours"));
@@ -1618,7 +1618,7 @@ public class DashboardController {
 
         ComboBox<Location> locBox = new ComboBox<>();
         locBox.setPromptText("(Optional – leave for online)");
-        locBox.getItems().addAll(cache.getAllLocations().values());
+        locBox.getItems().setAll(sortedLocations());
 
         TextField startField = new TextField(); startField.setPromptText("yyyy-MM-dd HH:mm (UTC)");
         TextField endField = new TextField(); endField.setPromptText("yyyy-MM-dd HH:mm (UTC)");
@@ -1689,7 +1689,7 @@ public class DashboardController {
         grid.setPadding(new Insets(10));
 
         ComboBox<Course> courseBox = new ComboBox<>();
-        courseBox.getItems().addAll(cache.getAllCourses().values());
+        courseBox.getItems().setAll(sortedCourses());
         if (selected.getCourseId() != null) {
             cache.getAllCourses().values().stream()
                     .filter(c -> Objects.equals(c.getCourseId(), selected.getCourseId()))
@@ -1711,7 +1711,7 @@ public class DashboardController {
 
         ComboBox<Location> locBox = new ComboBox<>();
         locBox.setPromptText("(Optional – leave for online)");
-        locBox.getItems().addAll(cache.getAllLocations().values());
+        locBox.getItems().setAll(sortedLocations());
         if (selected.getLocId() != null) {
             cache.getAllLocations().values().stream()
                     .filter(l -> Objects.equals(l.getLocId(), selected.getLocId()))
@@ -1874,6 +1874,7 @@ public class DashboardController {
     }
 
     private void refreshAllViews() {
+        cancelActiveViewRefreshes();
         refreshData();
         departmentCombo.getItems().setAll(sortedDepartments());
         homePage.refresh();
@@ -1897,26 +1898,41 @@ public class DashboardController {
 
     private List<Department> sortedDepartments() {
         return cache.getAllDepartments().values().stream()
-                .sorted(Comparator.comparing(Department::getName, String.CASE_INSENSITIVE_ORDER))
+            .sorted(Comparator.comparing(
+                d -> d.getName() != null ? d.getName() : "",
+                String.CASE_INSENSITIVE_ORDER
+            ))
                 .toList();
     }
 
     private List<Professor> sortedProfessors() {
         return cache.getAllProfessors().values().stream()
-                .sorted(Comparator.comparing(Professor::getName, String.CASE_INSENSITIVE_ORDER))
+            .sorted(Comparator.comparing(
+                p -> p.getName() != null ? p.getName() : "",
+                String.CASE_INSENSITIVE_ORDER
+            ))
                 .toList();
     }
 
     private List<Course> sortedCourses() {
         return cache.getAllCourses().values().stream()
-                .sorted(Comparator.comparing(Course::getCourseCode, String.CASE_INSENSITIVE_ORDER))
+            .sorted(Comparator.comparing(
+                c -> c.getCourseCode() != null ? c.getCourseCode() : "",
+                String.CASE_INSENSITIVE_ORDER
+            ))
                 .toList();
     }
 
     private List<Location> sortedLocations() {
         return cache.getAllLocations().values().stream()
-                .sorted(Comparator.comparing(Location::getBuilding, String.CASE_INSENSITIVE_ORDER)
-                        .thenComparing(Location::getRoomNumber, String.CASE_INSENSITIVE_ORDER))
+            .sorted(Comparator.comparing(
+                    (Location l) -> l.getBuilding() != null ? l.getBuilding() : "",
+                    String.CASE_INSENSITIVE_ORDER
+                )
+                .thenComparing(
+                    l -> l.getRoomNumber() != null ? l.getRoomNumber() : "",
+                    String.CASE_INSENSITIVE_ORDER
+                ))
                 .toList();
     }
 

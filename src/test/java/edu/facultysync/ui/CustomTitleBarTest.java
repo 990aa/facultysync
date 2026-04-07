@@ -260,7 +260,7 @@ class CustomTitleBarTest {
             titleBar.getMaximizeButton().fire();
             assertTrue(titleBar.isMaximized());
 
-            Rectangle2D visual = Screen.getPrimary().getVisualBounds();
+                Rectangle2D visual = screenBoundsForStage();
             // Stage should not exceed visual bounds (which exclude the OS taskbar)
             assertTrue(stage.getX() >= visual.getMinX(),
                     "Stage X should be >= visual bounds minX");
@@ -280,7 +280,7 @@ class CustomTitleBarTest {
     @Test @Order(61)
     void initialState_stageIsNotFullscreen() throws Exception {
         onFx(() -> {
-            Rectangle2D visual = Screen.getPrimary().getVisualBounds();
+            Rectangle2D visual = screenBoundsForStage();
             // The test stage is 800x600 – should NOT fill the screen
             assertTrue(stage.getWidth() < visual.getWidth(),
                     "Stage should not fill screen width");
@@ -345,5 +345,16 @@ class CustomTitleBarTest {
             titleBar.getMaximizeButton().fire();
             assertEquals("\u25A1", titleBar.getMaximizeButton().getText(), "Restored state: white square again");
         });
+    }
+
+    private Rectangle2D screenBoundsForStage() {
+        var screens = Screen.getScreensForRectangle(
+                stage.getX(),
+                stage.getY(),
+                Math.max(1, stage.getWidth()),
+                Math.max(1, stage.getHeight())
+        );
+        Screen target = screens.isEmpty() ? Screen.getPrimary() : screens.get(0);
+        return target.getVisualBounds();
     }
 }

@@ -610,6 +610,7 @@
     -fx-font-size: 12px;
     -fx-font-weight: bold;
     -fx-text-fill: white;
+    -fx-text-overrun: ellipsis;
 }
 
 .cal-event-time {
@@ -620,6 +621,7 @@
 .cal-event-loc {
     -fx-font-size: 10px;
     -fx-text-fill: rgba(255, 255, 255, 0.75);
+    -fx-text-overrun: ellipsis;
 }
 
 /* ============================================================
