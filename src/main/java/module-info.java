@@ -4,7 +4,6 @@ module edu.facultysync {
     requires java.sql;
     requires java.desktop;
     requires org.slf4j;
-    requires org.apache.commons.csv;
 
     exports edu.facultysync;
 }

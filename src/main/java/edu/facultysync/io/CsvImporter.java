@@ -4,9 +4,6 @@ import edu.facultysync.db.*;
 import edu.facultysync.model.*;
 import edu.facultysync.model.ScheduledEvent.EventType;
 import edu.facultysync.util.TimePolicy;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
 
 import java.io.*;
 import java.sql.SQLException;
@@ -161,26 +158,29 @@ public class CsvImporter {
 
     private List<CsvRow> readCsv(File file) throws IOException {
         List<CsvRow> rows = new ArrayList<>();
-        CSVFormat format = CSVFormat.DEFAULT.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
-                .build();
-
-        try (Reader reader = new BufferedReader(new FileReader(file));
-             CSVParser parser = format.parse(reader)) {
-            for (CSVRecord record : parser) {
-                if (isBlankRecord(record)) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
+            String line;
+            int rowNumber = 0;
+            boolean headerSkipped = false;
+            while ((line = reader.readLine()) != null) {
+                rowNumber++;
+                if (!headerSkipped) {
+                    headerSkipped = true;
                     continue;
                 }
-                String[] cols = toColumns(record);
-                rows.add(new CsvRow((int) record.getRecordNumber() + 1, recordToRaw(record), cols));
+
+                String[] cols = parseCsvLine(line);
+                if (isBlankColumns(cols)) {
+                    continue;
+                }
+                rows.add(new CsvRow(rowNumber, line, cols));
             }
         }
         return rows;
     }
 
-    private boolean isBlankRecord(CSVRecord record) {
-        for (String value : record) {
+    private boolean isBlankColumns(String[] cols) {
+        for (String value : cols) {
             if (value != null && !value.trim().isEmpty()) {
                 return false;
             }
@@ -188,24 +188,30 @@ public class CsvImporter {
         return true;
     }
 
-    private String[] toColumns(CSVRecord record) {
-        String[] cols = new String[record.size()];
-        for (int i = 0; i < record.size(); i++) {
-            cols[i] = record.get(i);
-        }
-        return cols;
-    }
+    private String[] parseCsvLine(String line) {
+        List<String> values = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inQuotes = false;
 
-    private String recordToRaw(CSVRecord record) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < record.size(); i++) {
-            if (i > 0) {
-                sb.append(",");
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (c == ',' && !inQuotes) {
+                values.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(c);
             }
-            String value = record.get(i);
-            sb.append(value == null ? "" : value);
         }
-        return sb.toString();
+
+        values.add(current.toString());
+        return values.toArray(new String[0]);
     }
 
     private String locationKey(String building, String roomNumber) {
