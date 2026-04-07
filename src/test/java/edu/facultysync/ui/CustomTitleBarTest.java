@@ -16,6 +16,8 @@ import org.junit.jupiter.api.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,6 +34,8 @@ class CustomTitleBarTest {
 
     @BeforeAll
     void initFxAndBuildBar() throws Exception {
+        Logger.getLogger("com.sun.javafx.application.PlatformImpl").setLevel(Level.SEVERE);
+
         CountDownLatch startupLatch = new CountDownLatch(1);
         try {
             Platform.startup(startupLatch::countDown);
