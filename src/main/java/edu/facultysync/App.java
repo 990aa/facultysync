@@ -28,7 +28,7 @@ public class App extends Application {
     private static final Logger LOG = LoggerFactory.getLogger(App.class);
 
     /** Application version – updated by release script. */
-    public static final String VERSION = "0.7.0";
+    public static final String VERSION = "0.8.0";
 
     private DatabaseManager dbManager;
 
