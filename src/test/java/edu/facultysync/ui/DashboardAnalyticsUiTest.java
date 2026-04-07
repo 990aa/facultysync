@@ -43,8 +43,10 @@ class DashboardAnalyticsUiTest {
         // Keep one startup path for this class without requiring global test ordering.
         CountDownLatch startupLatch = new CountDownLatch(1);
         try {
+            Platform.setImplicitExit(false);
             Platform.startup(startupLatch::countDown);
         } catch (IllegalStateException e) {
+            Platform.setImplicitExit(false);
             startupLatch.countDown();
         }
         assertTrue(startupLatch.await(5, TimeUnit.SECONDS));
@@ -69,7 +71,6 @@ class DashboardAnalyticsUiTest {
             DashboardController dashboard = new DashboardController(appModule, stage);
             Scene scene = new Scene(new VBox(dashboard.getRoot()), 920, 560);
             stage.setScene(scene);
-            stage.show();
             stageRef.set(stage);
         });
 
@@ -137,7 +138,6 @@ class DashboardAnalyticsUiTest {
             HomePage homePage = new HomePage(dbManager, cache, null);
             Scene scene = new Scene(homePage.getContent(), 920, 560);
             stage.setScene(scene);
-            stage.show();
             stageRef.set(stage);
         });
 
@@ -168,7 +168,6 @@ class DashboardAnalyticsUiTest {
             AnalyticsView analyticsView = new AnalyticsView(dbManager, cache, null);
             Scene scene = new Scene(analyticsView.getView(), 960, 560);
             stage.setScene(scene);
-            stage.show();
             stageRef.set(stage);
             analyticsRef.set(analyticsView);
         });
