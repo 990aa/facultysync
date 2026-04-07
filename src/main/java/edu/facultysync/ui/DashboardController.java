@@ -57,6 +57,7 @@ public class DashboardController {
     private final StackPane busyOverlay = new StackPane();
     private final Label busyOverlayLabel = new Label("Loading...");
     private int busyDepth = 0;
+    private Task<List<ScheduledEvent>> activeRefreshDataTask;
 
     // Sub-views
     private HomePage homePage;
@@ -127,6 +128,8 @@ public class DashboardController {
 
         // Refresh views when tab is selected
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
+            cancelActiveViewRefreshes();
+
             if (newTab == homeTab) {
                 showBusy("Loading Home...");
                 homePage.refresh(this::hideBusy);
@@ -171,7 +174,7 @@ public class DashboardController {
         departmentCombo.setId("departmentCombo");
         departmentCombo.setMaxWidth(Double.MAX_VALUE);
         departmentCombo.setPromptText("All Departments");
-        departmentCombo.getItems().addAll(cache.getAllDepartments().values());
+        departmentCombo.getItems().setAll(sortedDepartments());
         departmentCombo.setOnAction(e -> refreshData());
 
         // Action buttons with icons
@@ -435,27 +438,57 @@ public class DashboardController {
     }
 
     private void refreshData(Runnable onComplete) {
+        cancelRefreshDataTask();
+
         Task<List<ScheduledEvent>> task = new Task<>() {
             @Override
             protected List<ScheduledEvent> call() throws Exception {
+                if (isCancelled()) {
+                    return List.of();
+                }
                 List<ScheduledEvent> events = new ScheduledEventDAO(dbManager).findAll();
+                if (isCancelled()) {
+                    return List.of();
+                }
                 cache.enrichAll(events);
                 return events;
             }
         };
+        activeRefreshDataTask = task;
+
         task.setOnSucceeded(e -> {
-            eventTable.setItems(FXCollections.observableArrayList(task.getValue()));
-            statusLabel.setText("Loaded " + task.getValue().size() + " events.");
+            if (task != activeRefreshDataTask || task.isCancelled()) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
+
+            List<ScheduledEvent> sortedEvents = sortEventsChronologically(task.getValue());
+            eventTable.setItems(FXCollections.observableArrayList(sortedEvents));
+            statusLabel.setText("Loaded " + sortedEvents.size() + " events.");
             if (onComplete != null) {
                 onComplete.run();
             }
         });
         task.setOnFailed(e -> {
+            if (task.isCancelled()) {
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+                return;
+            }
             statusLabel.setText("Error loading events: " + task.getException().getMessage());
             if (onComplete != null) {
                 onComplete.run();
             }
         });
+        task.setOnCancelled(e -> {
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        });
+
         Thread thread = new Thread(task, "RefreshData");
         thread.setDaemon(true);
         thread.start();
@@ -1821,12 +1854,70 @@ public class DashboardController {
         });
     }
 
+    private void cancelActiveViewRefreshes() {
+        if (homePage != null) {
+            homePage.cancelRefresh();
+        }
+        if (calendarView != null) {
+            calendarView.cancelRefresh();
+        }
+        if (analyticsView != null) {
+            analyticsView.cancelRefresh();
+        }
+        cancelRefreshDataTask();
+    }
+
+    private void cancelRefreshDataTask() {
+        if (activeRefreshDataTask != null && activeRefreshDataTask.isRunning()) {
+            activeRefreshDataTask.cancel();
+        }
+    }
+
     private void refreshAllViews() {
         refreshData();
-        departmentCombo.getItems().setAll(cache.getAllDepartments().values());
+        departmentCombo.getItems().setAll(sortedDepartments());
         homePage.refresh();
         calendarView.refresh();
         analyticsView.refresh();
+    }
+
+    private List<ScheduledEvent> sortEventsChronologically(List<ScheduledEvent> events) {
+        List<ScheduledEvent> sorted = new ArrayList<>(events);
+        sorted.sort(Comparator
+                .comparing((ScheduledEvent e) -> epochOrMax(e.getStartEpoch()))
+                .thenComparing(e -> epochOrMax(e.getEndEpoch()))
+                .thenComparing(e -> e.getCourseCode() != null ? e.getCourseCode() : "")
+                .thenComparing(e -> e.getEventId() != null ? e.getEventId() : Integer.MAX_VALUE));
+        return sorted;
+    }
+
+    private long epochOrMax(Long value) {
+        return value != null ? value : Long.MAX_VALUE;
+    }
+
+    private List<Department> sortedDepartments() {
+        return cache.getAllDepartments().values().stream()
+                .sorted(Comparator.comparing(Department::getName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private List<Professor> sortedProfessors() {
+        return cache.getAllProfessors().values().stream()
+                .sorted(Comparator.comparing(Professor::getName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private List<Course> sortedCourses() {
+        return cache.getAllCourses().values().stream()
+                .sorted(Comparator.comparing(Course::getCourseCode, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    private List<Location> sortedLocations() {
+        return cache.getAllLocations().values().stream()
+                .sorted(Comparator.comparing(Location::getBuilding, String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(Location::getRoomNumber, String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     private <T> void runDbTask(
