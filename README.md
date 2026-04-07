@@ -4,7 +4,7 @@ A modern JavaFX desktop application for managing university course schedules, de
 
 ## Download
 
-> **Latest Release:** [v0.3.1](https://github.com/990aa/facultysync/releases/latest)
+> **Latest Release:** [v0.4.0](https://github.com/990aa/facultysync/releases/latest)
 
 Download the standalone Windows distribution from the [Releases](https://github.com/990aa/facultysync/releases) page. No JDK installation required.
 
