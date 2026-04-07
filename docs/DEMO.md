@@ -1,162 +1,153 @@
-# FacultySync Demo Guide (Updated)
+# FacultySync Live Demo Guide
 
-This guide walks through the current FacultySync user experience after the modernization pass.
+This runbook is written for the current codebase and assumes you start from seeded demo data.
 
-## 1) Run the Application
+## 1. Pre-Demo Setup
 
-### Build
-./gradlew build
+Run the seed-only script first:
 
-### Start UI
+```bash
+./gradlew seedDb
+```
+
+Expected seed output includes:
+
+- schema initialization success
+- entity totals (departments, professors, courses, locations, events)
+- detected conflicts grouped by:
+  - `HARD_OVERLAP`
+  - `PROFESSOR_OVERLAP`
+  - `TIGHT_TRANSITION`
+
+Then launch the app:
+
+```bash
 ./gradlew run
+```
 
-### Run Tests
-./gradlew test
+## 2. Launch Verification
 
-## 2) What You See on Launch
+Immediately confirm:
 
-- A custom undecorated window with branded title bar controls.
-- Seeded sample data (departments, professors, courses, rooms, and events).
-- Five main tabs:
-  - Home
-  - Schedule
-  - Conflicts
-  - Calendar
-  - Analytics
+1. Window title shows `FacultySync` (no version suffix).
+2. Left sidebar is scrollable to the bottom.
+3. There is no `Import CSV` button in the sidebar.
+4. Department dropdown text is clearly visible (black text).
+5. Department dropdown contains `No Filter (All Departments)`.
 
-## 3) Home Tab
+## 3. Home Tab Demo
 
-Home provides the high-level operational snapshot:
+Demonstrate:
 
-- live counts for key entities
-- quick action cards
-- recent activity feed
+1. Summary cards update from seeded data.
+2. `Recent Events` list is visible.
+3. `Quick Actions` section is absent (removed from Home).
+4. Scroll works fully from top to bottom.
 
-It refreshes through the event bus when data changes.
+Narration tip: explain that Home reflects async-refresh snapshots, not hardcoded values.
 
-## 4) Schedule Tab
+## 4. Schedule Tab Demo
 
-Schedule is now owned by a dedicated view module.
+Demonstrate full schedule behavior:
 
-- table-based event list
-- context menu for edit/delete
-- double-click to edit
-- empty state guidance when no events exist
+1. Open Schedule tab and show seeded events table.
+2. Use department dropdown:
+   - select `No Filter (All Departments)` to show all data
+   - switch to each department and show filtered rows
+3. Right-click an event row:
+   - open context menu
+   - show `Edit Event` and `Delete Event`
+4. Double-click an event to open edit flow.
 
-## 5) Conflicts Tab
+## 5. Conflict Analysis Demo (All Conflict Types)
 
-Conflicts is now owned by a dedicated view module.
+### 5.1 Trigger analysis
 
-- conflict severity indicator
-- conflict description
-- room alternatives
-- double-click to open reassignment flow
+1. Click `Analyze Conflicts`.
+2. Open Conflicts tab and review table rows.
+3. Point out severity badges/colors.
 
-Conflict severities include:
+### 5.2 Demonstrate each type live
 
-- HARD_OVERLAP
-- PROFESSOR_OVERLAP
-- TIGHT_TRANSITION
+Use table severity column to show at least one row of each:
 
-## 6) Calendar Tab
+1. `HARD_OVERLAP`
+   - two events overlapping in the same room/time window
+2. `PROFESSOR_OVERLAP`
+   - same professor assigned to overlapping events in different rooms
+3. `TIGHT_TRANSITION`
+   - same professor with too-short inter-building gap
 
-Calendar uses java.time-backed week navigation and drag-drop scheduling.
+### 5.3 Explain alternatives
 
-- previous/next/today controls
-- color-coded event cards by type
-- tooltip details
-- drag and drop with validation
+For rows with alternatives, show `Alternatives` column and explain room suggestions.
 
-## 7) Analytics Tab
+## 6. Conflict Resolution Demo
 
-Analytics provides operational charts and summary cards.
+### 6.1 Manual resolution path
 
-- event type distribution
-- building usage breakdown
-- hourly load trends
-- department activity summaries
+1. Double-click a conflict row in Conflicts tab.
+2. Select one suggested room.
+3. Confirm reassignment.
+4. Re-run `Analyze Conflicts` and show impact.
 
-## 8) Data Management Workflows
+### 6.2 Auto-resolve path
 
-From the left sidebar you can:
+1. Click `Auto-Resolve Conflicts`.
+2. Show status and toast feedback.
+3. Re-run `Analyze Conflicts`.
+4. Compare conflict count before vs after.
 
-- import CSV
-- export schedule
-- export conflict report
-- analyze conflicts
-- auto-resolve conflicts
-- manage entities (department, professor, course, location)
-- add new entities and events
+## 7. Show Updated Schedule After Resolution
 
-## 9) Event-Driven Refresh Flow
+After manual and/or auto-resolve:
 
-The UI now refreshes through typed events.
+1. Return to Schedule tab.
+2. Locate moved event(s) and highlight updated room assignment(s).
+3. Open Calendar tab and visually verify moved event placement.
+4. Optionally use department filter to show impact by department.
 
-- CourseAddedEvent
-- DataChangedEvent
+This is the key proof step that the schedule changed in persisted data, not only in-memory UI.
 
-Publishing occurs after successful mutations, allowing views to refresh independently.
+## 8. Calendar Tab Demo
 
-## 10) Logging and Diagnostics
+Demonstrate:
 
-System.out/System.err usage has been replaced with SLF4J.
+1. Week navigation with `Prev`, `Today`, `Next`.
+2. Week jump using DatePicker.
+3. Conflict-highlighted blocks.
+4. Drag-and-drop event movement and post-drop validation flow.
+5. Full vertical scroll from earliest to latest rendered hours.
 
-- default backend: Logback
-- config file: src/main/resources/logback.xml
+## 9. Analytics Tab Demo
 
-## 11) CSV Import Expectations
+Demonstrate chart completeness and readability:
 
-Expected columns:
+1. Scroll to bottom to show all analytics sections.
+2. Show legends on pie and bar charts.
+3. Show X/Y axis labels on bar charts.
+4. Review:
+   - Event Type Distribution
+   - Peak Hours
+   - Building Utilization
+   - Department Activity
+5. Confirm charts refresh after data changes.
 
-course_code,event_type,building,room_number,start_datetime,end_datetime
+## 10. Export Workflows
 
-Example:
+From sidebar:
 
-CS101,Lecture,Science Hall,101,2026-03-01 09:00,2026-03-01 10:00
+1. `Export Schedule CSV`
+2. `Export Conflict Report`
 
-Importer behavior:
+Show generated files and explain they reflect current post-resolution state.
 
-- validates rows
-- records skipped rows and reasons
-- supports progress callbacks
+## 11. End-of-Demo Checklist
 
-## 12) Architecture Snapshot
+Before ending, confirm:
 
-Main packages:
-
-- edu.facultysync.algo
-- edu.facultysync.core
-- edu.facultysync.db
-- edu.facultysync.events
-- edu.facultysync.io
-- edu.facultysync.model
-- edu.facultysync.service
-- edu.facultysync.ui
-- edu.facultysync.util
-
-## 13) Key Modernization Outcomes Demonstrated in the Demo
-
-- immutable record-based core models for Department/Professor/Course
-- java.time-based scheduling logic where legacy Calendar/Date was removed
-- extracted ScheduleView and ConflictView for cleaner controller boundaries
-- AppModule lightweight DI bootstrap
-- SQL centralization through db/SqlQueries
-- JPMS module descriptor in src/main/java/module-info.java
-
-## 14) Troubleshooting Quick Notes
-
-If run fails:
-
-1. ensure Java toolchain matches build.gradle
-2. run ./gradlew clean test
-3. confirm database file permissions
-4. inspect logs from configured Logback output
-
-## 15) Verification
-
-Recommended pre-demo check:
-
-1. ./gradlew clean test
-2. ./gradlew run
-3. perform one mutation (add/edit/delete)
-4. verify other views refresh via event-driven updates
+1. all three conflict severities were demonstrated live
+2. at least one conflict was resolved
+3. updated schedule state was shown in both Schedule and Calendar
+4. analytics rendered with legends and axes
+5. no UI regression around scrolling, title text, or department filtering

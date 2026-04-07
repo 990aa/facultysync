@@ -1,189 +1,157 @@
-# FacultySync – University Schedule & Conflict Manager
+# FacultySync - University Schedule and Conflict Manager
 
-A modern JavaFX desktop application for managing university course schedules, detecting room conflicts, and resolving them with intelligent suggestions. Features a custom undecorated UI, native Windows notifications, automatic updates from GitHub, and a comprehensive analytics dashboard.
+FacultySync is a JavaFX desktop application for university schedule operations:
+
+- manage departments, professors, courses, locations, and scheduled events
+- detect schedule conflicts with explainable severity levels
+- resolve conflicts manually or with automatic room reassignment
+- monitor schedule activity through calendar and analytics views
 
 ## Download
 
-> **Latest Release:** [v0.8.0](https://github.com/990aa/facultysync/releases/latest)
+Latest release: [v0.8.0](https://github.com/990aa/facultysync/releases/latest)
 
-Download the standalone Windows distribution from the [Releases](https://github.com/990aa/facultysync/releases) page. No JDK installation required.
+## Core Features
 
-## Features
+### Scheduling and Data Management
 
-### Core
-- **Schedule Management** – Import/export CSV schedules, add events/courses/professors/locations/departments interactively
-- **Conflict Detection** – O(N log N) detection using IntervalTree: hard room overlaps + tight professor transitions (< 15 min between buildings)
-- **Auto-Resolve** – Backtracking algorithm that reassigns conflicting events to available rooms, verifying no new conflicts are introduced
+- Sidebar actions for:
+  - Export Schedule CSV
+  - Export Conflict Report
+  - Analyze Conflicts
+  - Auto-Resolve Conflicts
+  - Manage Departments, Professors, Courses, Locations
+  - Add Department, Professor, Course, Location, Event
+  - Refresh Data
+- Schedule table with edit/delete context menu and double-click edit
+- Department filter with explicit `No Filter (All Departments)` option
 
-### UI
-- **Custom Title Bar** – Undecorated window with drag-to-move, double-click maximize, minimize/maximize/close, and edge-resize on all borders
-- **5-Tab Dashboard** – Home (stats + quick actions), Schedule, Conflicts, Calendar, Analytics
-- **Weekly Calendar** – Google Calendar-style grid with color-coded event blocks and drag-and-drop rescheduling
-- **Analytics Dashboard** – Pie/bar charts for event distribution, peak hours, building utilization, and department activity
-- **Toast Notifications** – Animated slide-in/fade-out notifications (success/warning/error/info)
+### Conflict Detection and Resolution
 
-### System Integration
-- **Windows Notifications** – Native OS toast notifications via `SystemTray` for imports, conflicts, auto-resolve results, and update alerts
-- **Auto-Update** – Checks GitHub Releases API on startup and prompts user to update when a newer version is available
-- **Version Display** – Current version shown in the title bar
+Conflict detection includes all three conflict types:
 
-### Data
-- **Demo Seed Data** – 5 departments, 9 professors, 10 courses, 10 locations, 30+ events with 4 intentional conflicts
-- **SQLite Database** – WAL journal mode, foreign keys, indexed for fast overlap queries
+- `HARD_OVERLAP`: same room, overlapping time
+- `PROFESSOR_OVERLAP`: same professor, overlapping time
+- `TIGHT_TRANSITION`: same professor, different buildings, gap below threshold
 
-## Architecture
+Resolution options:
 
-### Database (SQLite)
-- **5 normalized tables**: `departments`, `professors`, `courses`, `locations`, `scheduled_events`
-- **Epoch timestamps** for efficient overlap queries (`WHERE start_epoch < ? AND end_epoch > ?`)
-- **PRAGMA foreign_keys = ON** for relational integrity
-- **PRAGMA journal_mode = WAL** for concurrent read/write operations
+- Manual reassignment from the Conflicts tab (double-click conflict row)
+- Auto-resolve through backtracking room reassignment (`AutoResolver`)
 
-### Algorithms
-- **IntervalTree<T extends Schedulable>** – generic balanced interval tree for O(log N) overlap detection
-- **ConflictEngine** – detects hard overlaps (same room) and tight transitions (professor moving between buildings with < 15 min gap)
-- **AutoResolver** – backtracking algorithm: tries alternatives, verifies no new conflicts, backtracks on failure
+### UI and Navigation
 
-### Concurrency
-- All DB I/O runs on background threads using JavaFX `Task<V>`
-- Progress bars bound to import/analysis tasks
-- UI thread never blocks
-- Update checking runs on a daemon thread
+- Custom undecorated title bar (drag, maximize, resize, controls)
+- Title text is `FacultySync` (no version suffix)
+- Five-tab dashboard:
+  - Home (summary cards + recent events)
+  - Schedule
+  - Conflicts
+  - Calendar
+  - Analytics
+- Sidebar and major content views are vertically scrollable
 
-### I/O
-- **CSV Import** with `BufferedReader`/`FileReader`, handles missing data via Wrapper classes (`Integer`, `Long`)
-- **Conflict Report Export** – formatted text file with alternatives
-- **Schedule Export** – CSV output
+### Calendar and Analytics
 
-## Build & Run
+- Weekly calendar with:
+  - Previous/Today/Next navigation
+  - DatePicker week jump
+  - drag-and-drop room reassignment
+  - conflict highlighting
+- Analytics dashboard with complete chart rendering:
+  - legends visible
+  - labeled X/Y axes on bar charts
+  - event type, peak hours, building utilization, and department activity charts
 
-```bash
-./gradlew build      # Compile + run all tests
-./gradlew run        # Launch the application
-./gradlew test       # Run all automated tests
-```
+## Demo Data Seeding
 
-### Seed the Database
+FacultySync seeds data on app startup when the DB is empty, and restores intentional demo conflicts on startup.
 
-FacultySync automatically seeds demo data on first launch. To manually seed the database and run conflict analysis + auto-resolve from the command line:
+For command-line seeding only (no auto-resolve), use:
 
 ```bash
-./gradlew seedAndResolve
+./gradlew seedDb
 ```
 
-This inserts 5 departments, 9 professors, 10 courses, 10 locations, and 30+ scheduled events (including 4 intentional conflicts), then runs the full conflict detection and auto-resolution pipeline with console output.
+What `seedDb` does:
 
-### Build Standalone Distribution (Windows)
+1. Initializes schema
+2. Seeds demo entities if the DB is empty
+3. Restores intentional demo conflicts (idempotent upsert)
+4. Prints entity totals and detected conflict counts by severity
 
-To build a portable `.zip` distribution for Windows:
+This command is the recommended pre-demo step.
+
+## Build and Run
+
+```bash
+./gradlew build
+./gradlew test
+./gradlew run
+```
+
+## Distribution
 
 ```bash
 ./gradlew distZip2
 ```
 
-The output is placed at `build/distributions/FacultySync-<version>-windows.zip`. Extract it and run:
+Output:
 
-```
-FacultySync-<version>-windows\bin\facultysync.bat
-```
+- `build/distributions/FacultySync-<version>-windows.zip`
 
-This bundle includes all dependencies and can be distributed to any Windows machine with Java 25 installed.
+## Architecture Snapshot
 
-## Test Coverage
+### Main Packages
 
-| Suite | Tests | Coverage |
-|-------|-------|----------|
-| ModelTest | 48 | All model classes, getters/setters, equals/hashCode, toString, EventType parsing |
-| IntervalTreeTest | 27 | Empty/null trees, insert, overlap queries, edge cases, stress tests |
-| DatabaseTest | 36 | Schema, PRAGMAs, all CRUD operations, constraints, FK violations |
-| DataCacheTest | 14 | Cache loading, enrichment, null handling, refresh |
-| ConflictEngineTest | 10 | Hard overlaps, tight transitions, online events, multi-overlap |
-| IoTest | 19 | CSV import (valid/invalid/edge cases), report export, schedule export |
-| AutoResolverTest | 10+ | Resolution, backtracking, unresolvable cases, online events |
-| SeedDataTest | 15+ | Idempotency, entity counts, integrity, intentional conflicts |
+- `edu.facultysync.algo` - interval tree overlap logic
+- `edu.facultysync.core` - dependency wiring (`AppModule`)
+- `edu.facultysync.db` - schema, DAOs, seed routines
+- `edu.facultysync.events` - typed event bus payloads
+- `edu.facultysync.io` - export and CSV IO services
+- `edu.facultysync.model` - domain models (`Department`, `Professor`, `Course` are records)
+- `edu.facultysync.service` - cache, conflict engine, auto-resolver, notifications
+- `edu.facultysync.ui` - JavaFX views/controllers
+- `edu.facultysync.util` - time and shared utility policies
+
+### Data Layer
+
+- SQLite with WAL mode + foreign keys
+- Normalized entities: departments, professors, courses, locations, scheduled_events
+- Epoch millis persistence with `java.time` conversion at boundaries
+
+### Event-Driven Refresh
+
+- `DataChangedEvent` and `CourseAddedEvent`
+- Views subscribe through `AppEventBus` and refresh asynchronously
 
 ## Project Structure
 
-```
+```text
 src/main/java/edu/facultysync/
-├── App.java                      # Application entry point + version constant
-├── UpdateChecker.java            # GitHub auto-update checker
+├── App.java
+├── SeedDatabase.java
+├── UpdateChecker.java
 ├── algo/
-│   └── IntervalTree.java         # Balanced BST for O(log N) overlap queries
+├── core/
 ├── db/
-│   ├── DatabaseManager.java      # SQLite connection + schema + PRAGMAs
-│   ├── DepartmentDAO.java        # CRUD for departments
-│   ├── ProfessorDAO.java         # CRUD for professors
-│   ├── CourseDAO.java            # CRUD for courses
-│   ├── LocationDAO.java          # CRUD + findAvailable()
-│   ├── ScheduledEventDAO.java    # CRUD + time-range/overlap queries
-│   └── SeedData.java             # Demo data seeding (30+ events, 4 conflicts)
+├── events/
 ├── io/
-│   ├── CsvImporter.java          # CSV → Database with progress callback
-│   └── ReportExporter.java       # Database → CSV/TXT export
 ├── model/
-│   ├── ConflictResult.java       # Conflict detection result (HARD_OVERLAP / TIGHT_TRANSITION)
-│   ├── Course.java               # ORM: courses table
-│   ├── Department.java           # ORM: departments table
-│   ├── Location.java             # ORM: locations table
-│   ├── Professor.java            # ORM: professors table
-│   ├── Schedulable.java          # Interface for IntervalTree
-│   └── ScheduledEvent.java       # ORM: scheduled_events table
 ├── service/
-│   ├── ConflictEngine.java       # IntervalTree-based conflict detection
-│   ├── DataCache.java            # In-memory HashMap cache for reference data
-│   ├── AutoResolver.java         # Backtracking auto-resolve algorithm
-│   └── NotificationService.java  # Native Windows system tray notifications
 └── ui/
-    ├── DashboardController.java  # Main layout (5 tabs + sidebar)
-    ├── CustomTitleBar.java       # Undecorated window title bar with resize
-    ├── HomePage.java             # Welcome page with stats + quick actions
-    ├── CalendarView.java         # Weekly calendar grid with drag-drop
-    ├── AnalyticsView.java        # Charts & insights dashboard
-    └── ToastNotification.java    # Animated toast notification system
 ```
 
-## Tech Stack
+## Testing
 
-| Component | Technology |
-|-----------|------------|
-| Language | Java 25 |
-| UI Framework | JavaFX 25 (Controls, Graphics) |
-| Database | SQLite 3.45.1 (via sqlite-jdbc) |
-| Build Tool | Gradle with org.openjfx.javafxplugin |
-| Testing | JUnit Jupiter 5.10.2 |
-| Charts | JavaFX PieChart & BarChart |
-| Notifications | java.awt.SystemTray (Windows native) |
+Run all tests:
 
-## Release
-
-The project includes a PowerShell release script that automates:
-1. Semantic version bumping (major/minor/patch) in `build.gradle`, `App.java`, and `README.md`
-2. Building the standalone distribution zip (via `./gradlew distZip2`)
-3. Running all tests
-4. Committing, tagging, and pushing to GitHub
-5. Creating a GitHub Release with the zip attached
-6. Triggering the GitHub Actions workflow to build an MSI installer
-
-```powershell
-# Release with version bump
-.\release.ps1 -BumpType patch    # 0.1.0 → 0.1.1
-.\release.ps1 -BumpType minor    # 0.1.0 → 0.2.0
-.\release.ps1 -BumpType major    # 0.1.0 → 1.0.0
-.\release.ps1 -Version 0.1.0     # Explicit version
-
-# Preview (no changes made)
-.\release.ps1 -BumpType patch -DryRun
+```bash
+./gradlew test
 ```
 
-### CI/CD
-
-On every tag push (`v*`), a GitHub Actions workflow:
-1. Builds the project with Java 25 (Temurin)
-2. Runs all tests
-3. Creates an MSI installer with `jpackage` + WiX Toolset
-4. Attaches both `.zip` and `.msi` to the GitHub Release
+Current suite includes model, DAO, algorithm, service, IO, seed, and JavaFX UI regression tests.
 
 ## License
 
-MIT License – see [LICENSE](LICENSE) for details.
+MIT License. See `LICENSE`.
