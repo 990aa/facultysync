@@ -4,6 +4,9 @@ import edu.facultysync.db.*;
 import edu.facultysync.model.*;
 import edu.facultysync.model.ScheduledEvent.EventType;
 import edu.facultysync.util.TimePolicy;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 
 import java.io.*;
 import java.sql.SQLException;
@@ -158,20 +161,51 @@ public class CsvImporter {
 
     private List<CsvRow> readCsv(File file) throws IOException {
         List<CsvRow> rows = new ArrayList<>();
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            br.readLine(); // skip header
-            String line;
-            int rowNumber = 2;
-            while ((line = br.readLine()) != null) {
-                if (line.trim().isEmpty()) {
-                    rowNumber++;
+        CSVFormat format = CSVFormat.DEFAULT.builder()
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .build();
+
+        try (Reader reader = new BufferedReader(new FileReader(file));
+             CSVParser parser = format.parse(reader)) {
+            for (CSVRecord record : parser) {
+                if (isBlankRecord(record)) {
                     continue;
                 }
-                rows.add(new CsvRow(rowNumber, line, line.split(",", -1)));
-                rowNumber++;
+                String[] cols = toColumns(record);
+                rows.add(new CsvRow((int) record.getRecordNumber() + 1, recordToRaw(record), cols));
             }
         }
         return rows;
+    }
+
+    private boolean isBlankRecord(CSVRecord record) {
+        for (String value : record) {
+            if (value != null && !value.trim().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private String[] toColumns(CSVRecord record) {
+        String[] cols = new String[record.size()];
+        for (int i = 0; i < record.size(); i++) {
+            cols[i] = record.get(i);
+        }
+        return cols;
+    }
+
+    private String recordToRaw(CSVRecord record) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < record.size(); i++) {
+            if (i > 0) {
+                sb.append(",");
+            }
+            String value = record.get(i);
+            sb.append(value == null ? "" : value);
+        }
+        return sb.toString();
     }
 
     private String locationKey(String building, String roomNumber) {

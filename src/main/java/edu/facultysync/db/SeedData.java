@@ -152,12 +152,12 @@ public class SeedData {
         LocationDAO locationDao = new LocationDAO(dbManager);
         ScheduledEventDAO eventDao = new ScheduledEventDAO(dbManager);
 
-        Course cs101 = courseDao.findByCode("CS101");
-        Course cs201 = courseDao.findByCode("CS201");
-        Course cs401 = courseDao.findByCode("CS401");
-        Course math201 = courseDao.findByCode("MATH201");
-        Course phys101 = courseDao.findByCode("PHYS101");
-        Course eng101 = courseDao.findByCode("ENG101");
+        Course cs101 = findCourseByDemoCode(courseDao, "CS101");
+        Course cs201 = findCourseByDemoCode(courseDao, "CS201");
+        Course cs401 = findCourseByDemoCode(courseDao, "CS401");
+        Course math201 = findCourseByDemoCode(courseDao, "MATH201");
+        Course phys101 = findCourseByDemoCode(courseDao, "PHYS101");
+        Course eng101 = findCourseByDemoCode(courseDao, "ENG101");
         if (cs101 == null || cs201 == null || cs401 == null
             || math201 == null || phys101 == null || eng101 == null) {
             return;
@@ -256,6 +256,28 @@ public class SeedData {
             }
         }
         return null;
+    }
+
+    private static Course findCourseByDemoCode(CourseDAO courseDao, String demoCode) throws SQLException {
+        Course exact = courseDao.findByCode(demoCode);
+        if (exact != null) {
+            return exact;
+        }
+
+        String normalizedDemoCode = normalizeCourseCode(demoCode);
+        for (Course candidate : courseDao.findAll()) {
+            if (normalizeCourseCode(candidate.getCourseCode()).equals(normalizedDemoCode)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static String normalizeCourseCode(String code) {
+        if (code == null) {
+            return "";
+        }
+        return code.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
     }
 
     private static void upsertConflictEvent(ScheduledEventDAO eventDao,
