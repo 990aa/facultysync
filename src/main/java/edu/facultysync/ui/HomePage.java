@@ -1,9 +1,8 @@
 package edu.facultysync.ui;
 
-import com.google.common.eventbus.EventBus;
-import com.google.common.eventbus.Subscribe;
 import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.ScheduledEventDAO;
+import edu.facultysync.events.AppEventBus;
 import edu.facultysync.events.DataChangedEvent;
 import edu.facultysync.model.ScheduledEvent;
 import edu.facultysync.service.DataCache;
@@ -31,7 +30,7 @@ public class HomePage {
     private final DatabaseManager dbManager;
     private final DataCache cache;
     private final TabPane tabPane;
-    private final EventBus eventBus;
+    private final AppEventBus eventBus;
     private final VBox content;
     private Task<HomeSnapshot> activeRefreshTask;
 
@@ -39,7 +38,7 @@ public class HomePage {
         this(dbManager, cache, tabPane, null);
     }
 
-    public HomePage(DatabaseManager dbManager, DataCache cache, TabPane tabPane, EventBus eventBus) {
+    public HomePage(DatabaseManager dbManager, DataCache cache, TabPane tabPane, AppEventBus eventBus) {
         this.dbManager = dbManager;
         this.cache = cache;
         this.tabPane = tabPane;
@@ -47,12 +46,11 @@ public class HomePage {
         this.content = new VBox();
         this.content.getStyleClass().add("home-page");
         if (this.eventBus != null) {
-            this.eventBus.register(this);
+            this.eventBus.subscribe(DataChangedEvent.class, this::onDataChanged);
         }
         refresh();
     }
 
-    @Subscribe
     public void onDataChanged(DataChangedEvent event) {
         Platform.runLater(this::refresh);
     }

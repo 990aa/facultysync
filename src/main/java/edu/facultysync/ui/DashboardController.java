@@ -1,8 +1,8 @@
 package edu.facultysync.ui;
 
-import com.google.common.eventbus.EventBus;
 import edu.facultysync.core.AppModule;
 import edu.facultysync.db.*;
+import edu.facultysync.events.AppEventBus;
 import edu.facultysync.events.CourseAddedEvent;
 import edu.facultysync.events.DataChangedEvent;
 import edu.facultysync.io.CsvImporter;
@@ -45,7 +45,7 @@ public class DashboardController {
     private final Stage stage;
     private final DataCache cache;
     private final ConflictEngine conflictEngine;
-    private final EventBus eventBus;
+    private final AppEventBus eventBus;
     private final StackPane rootStack; // root for toasts overlay
     private final BorderPane root;
 
@@ -88,7 +88,7 @@ public class DashboardController {
         this.stage = stage;
         this.cache = new DataCache(dbManager);
         this.conflictEngine = new ConflictEngine(dbManager, cache);
-        this.eventBus = new EventBus("FacultySyncUIBus");
+        this.eventBus = new AppEventBus("FacultySyncUIBus");
 
         cache.refresh();
         root = buildLayout();

@@ -1,9 +1,8 @@
 package edu.facultysync.ui;
 
-import com.google.common.eventbus.EventBus;
-import com.google.common.eventbus.Subscribe;
 import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.ScheduledEventDAO;
+import edu.facultysync.events.AppEventBus;
 import edu.facultysync.events.DataChangedEvent;
 import edu.facultysync.model.*;
 import edu.facultysync.service.ConflictEngine;
@@ -34,7 +33,7 @@ public class AnalyticsView {
 
     private final DatabaseManager dbManager;
     private final DataCache cache;
-    private final EventBus eventBus;
+    private final AppEventBus eventBus;
     private final VBox root;
 
     // Chart containers for refresh
@@ -45,17 +44,16 @@ public class AnalyticsView {
         this(dbManager, cache, null);
     }
 
-    public AnalyticsView(DatabaseManager dbManager, DataCache cache, EventBus eventBus) {
+    public AnalyticsView(DatabaseManager dbManager, DataCache cache, AppEventBus eventBus) {
         this.dbManager = dbManager;
         this.cache = cache;
         this.eventBus = eventBus;
         this.root = buildView();
         if (this.eventBus != null) {
-            this.eventBus.register(this);
+            this.eventBus.subscribe(DataChangedEvent.class, this::onDataChanged);
         }
     }
 
-    @Subscribe
     public void onDataChanged(DataChangedEvent event) {
         Platform.runLater(this::refresh);
     }
