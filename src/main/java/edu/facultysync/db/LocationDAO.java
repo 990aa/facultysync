@@ -7,6 +7,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Data access object for CRUD operations on locations.
+ */
 public class LocationDAO {
     private final DatabaseManager dbManager;
 
@@ -15,10 +18,9 @@ public class LocationDAO {
     }
 
     public Location insert(Location loc) throws SQLException {
-        String sql = "INSERT INTO locations (building, room_number, capacity, has_projector) VALUES (?, ?, ?, ?)";
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn
-                .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                .prepareStatement(SqlQueries.Location.INSERT, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, loc.getBuilding());
             ps.setString(2, loc.getRoomNumber());
             if (loc.getCapacity() != null) ps.setInt(3, loc.getCapacity());
@@ -34,9 +36,8 @@ public class LocationDAO {
     }
 
     public Location findById(int id) throws SQLException {
-        String sql = "SELECT loc_id, building, room_number, capacity, has_projector FROM locations WHERE loc_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Location.SELECT_BY_ID)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -47,10 +48,9 @@ public class LocationDAO {
 
     public List<Location> findAll() throws SQLException {
         List<Location> list = new ArrayList<>();
-        String sql = "SELECT loc_id, building, room_number, capacity, has_projector FROM locations ORDER BY building, room_number";
         try (Connection conn = dbManager.getConnection();
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             ResultSet rs = stmt.executeQuery(SqlQueries.Location.SELECT_ALL)) {
             while (rs.next()) list.add(map(rs));
         }
         return list;
@@ -61,14 +61,9 @@ public class LocationDAO {
      * Excludes rooms that are already booked during [startEpoch, endEpoch).
      */
     public List<Location> findAvailable(long startEpoch, long endEpoch, int minCapacity) throws SQLException {
-        String sql = "SELECT loc_id, building, room_number, capacity, has_projector FROM locations "
-                + "WHERE capacity >= ? AND loc_id NOT IN ("
-                + "  SELECT DISTINCT loc_id FROM scheduled_events "
-                + "  WHERE loc_id IS NOT NULL AND start_epoch < ? AND end_epoch > ?"
-                + ") ORDER BY capacity";
         List<Location> list = new ArrayList<>();
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Location.FIND_AVAILABLE)) {
             ps.setInt(1, minCapacity);
             ps.setLong(2, endEpoch);
             ps.setLong(3, startEpoch);
@@ -80,9 +75,8 @@ public class LocationDAO {
     }
 
     public void update(Location loc) throws SQLException {
-        String sql = "UPDATE locations SET building = ?, room_number = ?, capacity = ?, has_projector = ? WHERE loc_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Location.UPDATE)) {
             ps.setString(1, loc.getBuilding());
             ps.setString(2, loc.getRoomNumber());
             if (loc.getCapacity() != null) ps.setInt(3, loc.getCapacity());
@@ -95,9 +89,8 @@ public class LocationDAO {
     }
 
     public void delete(int id) throws SQLException {
-        String sql = "DELETE FROM locations WHERE loc_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Location.DELETE)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }

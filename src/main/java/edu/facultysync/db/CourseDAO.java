@@ -18,11 +18,10 @@ public class CourseDAO {
     }
 
     public Course insert(Course course) throws SQLException {
-        String sql = "INSERT INTO courses (course_code, prof_id, enrollment_count) VALUES (?, ?, ?)";
         Integer newId = null;
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn
-                .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                .prepareStatement(SqlQueries.Course.INSERT, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, course.getCourseCode());
             ps.setInt(2, course.getProfId());
             if (course.getEnrollmentCount() != null) ps.setInt(3, course.getEnrollmentCount());
@@ -38,9 +37,8 @@ public class CourseDAO {
     }
 
     public Course findById(int id) throws SQLException {
-        String sql = "SELECT course_id, course_code, prof_id, enrollment_count FROM courses WHERE course_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Course.SELECT_BY_ID)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -50,9 +48,8 @@ public class CourseDAO {
     }
 
     public Course findByCode(String code) throws SQLException {
-        String sql = "SELECT course_id, course_code, prof_id, enrollment_count FROM courses WHERE course_code = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Course.SELECT_BY_CODE)) {
             ps.setString(1, code);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -63,10 +60,9 @@ public class CourseDAO {
 
     public List<Course> findAll() throws SQLException {
         List<Course> list = new ArrayList<>();
-        String sql = "SELECT course_id, course_code, prof_id, enrollment_count FROM courses ORDER BY course_code";
         try (Connection conn = dbManager.getConnection();
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             ResultSet rs = stmt.executeQuery(SqlQueries.Course.SELECT_ALL)) {
             while (rs.next()) list.add(map(rs));
         }
         return list;
@@ -74,9 +70,8 @@ public class CourseDAO {
 
     public List<Course> findByProfessor(int profId) throws SQLException {
         List<Course> list = new ArrayList<>();
-        String sql = "SELECT course_id, course_code, prof_id, enrollment_count FROM courses WHERE prof_id = ? ORDER BY course_code";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Course.SELECT_BY_PROFESSOR)) {
             ps.setInt(1, profId);
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) list.add(map(rs));
@@ -86,9 +81,8 @@ public class CourseDAO {
     }
 
     public void update(Course course) throws SQLException {
-        String sql = "UPDATE courses SET course_code = ?, prof_id = ?, enrollment_count = ? WHERE course_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Course.UPDATE)) {
             ps.setString(1, course.getCourseCode());
             ps.setInt(2, course.getProfId());
             if (course.getEnrollmentCount() != null) ps.setInt(3, course.getEnrollmentCount());
@@ -99,9 +93,8 @@ public class CourseDAO {
     }
 
     public void delete(int id) throws SQLException {
-        String sql = "DELETE FROM courses WHERE course_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Course.DELETE)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }

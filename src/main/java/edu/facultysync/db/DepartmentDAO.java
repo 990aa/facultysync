@@ -18,11 +18,10 @@ public class DepartmentDAO {
     }
 
     public Department insert(Department dept) throws SQLException {
-        String sql = "INSERT INTO departments (name) VALUES (?)";
         Integer newId = null;
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn
-                .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                .prepareStatement(SqlQueries.Department.INSERT, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, dept.getName());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
@@ -35,9 +34,8 @@ public class DepartmentDAO {
     }
 
     public Department findById(int id) throws SQLException {
-        String sql = "SELECT dept_id, name FROM departments WHERE dept_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Department.SELECT_BY_ID)) {
             ps.setInt(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return map(rs);
@@ -48,19 +46,17 @@ public class DepartmentDAO {
 
     public List<Department> findAll() throws SQLException {
         List<Department> list = new ArrayList<>();
-        String sql = "SELECT dept_id, name FROM departments ORDER BY name";
         try (Connection conn = dbManager.getConnection();
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+             ResultSet rs = stmt.executeQuery(SqlQueries.Department.SELECT_ALL)) {
             while (rs.next()) list.add(map(rs));
         }
         return list;
     }
 
     public void update(Department dept) throws SQLException {
-        String sql = "UPDATE departments SET name = ? WHERE dept_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Department.UPDATE)) {
             ps.setString(1, dept.getName());
             ps.setInt(2, dept.getDeptId());
             ps.executeUpdate();
@@ -68,9 +64,8 @@ public class DepartmentDAO {
     }
 
     public void delete(int id) throws SQLException {
-        String sql = "DELETE FROM departments WHERE dept_id = ?";
         try (Connection conn = dbManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(SqlQueries.Department.DELETE)) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }

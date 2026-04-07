@@ -123,7 +123,7 @@ public class DashboardController {
 
         // Home tab
         homePage = new HomePage(dbManager, cache, tabPane, eventBus);
-        Tab homeTab = new Tab("  \u2302 Home  ", homePage.getContent());
+        Tab homeTab = new Tab("  " + UiTokens.Icons.HOME + " Home  ", homePage.getContent());
         homeTab.setId("homeTab");
 
         // Schedule tab
@@ -133,17 +133,17 @@ public class DashboardController {
 
         // Conflicts tab
         conflictView = new ConflictView(this::handleReassign);
-        Tab conflictTab = new Tab("  \u26A0 Conflicts  ", conflictView.getView());
+        Tab conflictTab = new Tab("  " + UiTokens.Icons.CONFLICT + " Conflicts  ", conflictView.getView());
         conflictTab.setId("conflictTab");
 
         // Calendar tab
         calendarView = new CalendarView(dbManager, cache, eventBus);
-        Tab calendarTab = new Tab("  \uD83D\uDCC6 Calendar  ", calendarView.getView());
+        Tab calendarTab = new Tab("  " + UiTokens.Icons.CALENDAR + " Calendar  ", calendarView.getView());
         calendarTab.setId("calendarTab");
 
         // Analytics tab
         analyticsView = new AnalyticsView(dbManager, cache, eventBus);
-        Tab analyticsTab = new Tab("  \uD83D\uDCCA Analytics  ", analyticsView.getView());
+        Tab analyticsTab = new Tab("  " + UiTokens.Icons.ANALYTICS + " Analytics  ", analyticsView.getView());
         analyticsTab.setId("analyticsTab");
 
         tabPane.getTabs().addAll(homeTab, scheduleTab, conflictTab, calendarTab, analyticsTab);
@@ -191,7 +191,7 @@ public class DashboardController {
         subtitle.getStyleClass().add("app-subtitle");
 
         // Department filter
-        Label deptLabel = new Label("\uD83C\uDFDB Department Filter");
+        Label deptLabel = new Label(UiTokens.Icons.REPORT + " Department Filter");
         deptLabel.getStyleClass().add("sidebar-section-label");
         departmentCombo.setId("departmentCombo");
         departmentCombo.setMaxWidth(Double.MAX_VALUE);
@@ -223,7 +223,7 @@ public class DashboardController {
         Separator sep1 = new Separator();
         sep1.getStyleClass().add("sidebar-separator");
 
-        Label manageLabel = new Label("\u2699 Manage Data");
+        Label manageLabel = new Label(UiTokens.Icons.SETTINGS + " Manage Data");
         manageLabel.getStyleClass().add("sidebar-section-label");
 
         Button manageDeptBtn = createSidebarButton("\uD83D\uDCCB Departments", null);
@@ -720,7 +720,7 @@ public class DashboardController {
                 }, created -> {
                     refreshAllViews();
                     reload.run();
-        Tab scheduleTab = new Tab("  " + UiTokens.Icons.SCHEDULE + " Schedule  ", scheduleView.getView());
+                });
             });
         });
 
@@ -807,23 +807,23 @@ public class DashboardController {
             return new SimpleStringProperty(dept != null ? dept.getName() : "Unknown");
         });
 
-        Button importBtn = createSidebarButton(UiTokens.Icons.IMPORT + " Import CSV", "primary-btn");
+        table.getColumns().add(nameCol);
         table.getColumns().add(deptCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
-        Button exportScheduleBtn = createSidebarButton(UiTokens.Icons.EXPORT + " Export Schedule", null);
+        Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
                 cache.getAllProfessors().values().stream()
                         .sorted(Comparator.comparing(Professor::getName, String.CASE_INSENSITIVE_ORDER))
                         .toList()
-        Button exportConflictBtn = createSidebarButton(UiTokens.Icons.REPORT + " Export Conflicts", null);
+        ));
         reload.run();
 
         Button addBtn = new Button("Add");
-        Button analyzeBtn = createSidebarButton(UiTokens.Icons.WARNING + " Analyze Conflicts", "warning-btn");
+        addBtn.setOnAction(e -> openProfessorEditor(null).ifPresent(prof ->
                 runDbTask("AddProfessorFromManager", "Adding professor...", () -> {
                     Professor created = new ProfessorDAO(dbManager).insert(prof);
                     cache.refresh();
-        Button autoResolveBtn = createSidebarButton(UiTokens.Icons.RESOLVE + " Auto-Resolve", "resolve-btn");
+                    return created;
                 }, created -> {
                     refreshAllViews();
                     reload.run();
@@ -833,46 +833,46 @@ public class DashboardController {
         Button editBtn = new Button("Edit");
         editBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
         editBtn.setOnAction(e -> {
-        Button manageDeptBtn = createSidebarButton(UiTokens.Icons.REPORT + " Departments", null);
+            Professor selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) {
                 return;
             }
-        Button manageProfBtn = createSidebarButton(UiTokens.Icons.REPORT + " Professors", null);
+            openProfessorEditor(selected).ifPresent(updated ->
                     runDbTask("EditProfessorFromManager", "Saving professor...", () -> {
                         new ProfessorDAO(dbManager).update(updated);
                         cache.refresh();
-        Button manageCourseBtn = createSidebarButton(UiTokens.Icons.REPORT + " Courses", null);
+                        return updated;
                     }, result -> {
                         refreshAllViews();
                         reload.run();
-        Button manageLocationBtn = createSidebarButton(UiTokens.Icons.REPORT + " Locations", null);
+                    })
             );
         });
 
-        Button addDeptBtn = createSidebarButton(UiTokens.Icons.ADD + " Department", null);
+        Button deleteBtn = new Button("Delete");
         deleteBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
         deleteBtn.setOnAction(e -> {
             Professor selected = table.getSelectionModel().getSelectedItem();
-        Button addProfBtn = createSidebarButton(UiTokens.Icons.ADD + " Professor", null);
+            if (selected == null) {
                 return;
             }
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-        Button addCourseBtn = createSidebarButton(UiTokens.Icons.ADD + " Course", null);
+            confirm.setTitle("Delete Professor");
             confirm.setHeaderText("Delete " + selected.getName() + "?");
             confirm.setContentText("This cascades to courses and events linked to this professor.");
             confirm.showAndWait().ifPresent(btn -> {
-        Button addLocationBtn = createSidebarButton(UiTokens.Icons.ADD + " Location", null);
+                if (btn != ButtonType.OK) {
                     return;
                 }
                 runDbTask("DeleteProfessorFromManager", "Deleting professor...", () -> {
-        Button addEventBtn = createSidebarButton(UiTokens.Icons.ADD + " Event", null);
+                    new ProfessorDAO(dbManager).delete(selected.getProfId());
                     cache.refresh();
                     return selected.getProfId();
                 }, id -> {
                     refreshAllViews();
                     reload.run();
                 });
-        Button refreshBtn = createSidebarButton(UiTokens.Icons.REFRESH + " Refresh All", null);
+            });
         });
 
         HBox actions = new HBox(8, addBtn, editBtn, deleteBtn);

@@ -9,7 +9,11 @@ public final class UiTokens {
     }
 
     public static final class Icons {
+        public static final String HOME = "\u2302";
         public static final String SCHEDULE = "\uD83D\uDCC5";
+        public static final String CONFLICT = "\u26A0";
+        public static final String CALENDAR = "\uD83D\uDCC6";
+        public static final String ANALYTICS = "\uD83D\uDCCA";
         public static final String IMPORT = "\uD83D\uDCE5";
         public static final String EXPORT = "\uD83D\uDCE4";
         public static final String REPORT = "\uD83D\uDCCB";
