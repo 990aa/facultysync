@@ -5,7 +5,6 @@ import edu.facultysync.db.*;
 import edu.facultysync.events.AppEventBus;
 import edu.facultysync.events.CourseAddedEvent;
 import edu.facultysync.events.DataChangedEvent;
-import edu.facultysync.io.CsvImporter;
 import edu.facultysync.io.ReportExporter;
 import edu.facultysync.model.*;
 import edu.facultysync.model.ConflictResult.Severity;
@@ -403,77 +402,6 @@ public class DashboardController {
     }
 
     // ========== HANDLERS ==========
-
-    private void handleImport() {
-        FileChooser fc = new FileChooser();
-        fc.setTitle("Import CSV Schedule");
-        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files", "*.csv"));
-        File file = fc.showOpenDialog(stage);
-        if (file == null) return;
-
-        progressBar.setVisible(true);
-        statusLabel.setText("Importing...");
-
-        showBusy("Importing CSV...");
-
-        Task<CsvImporter.ImportReport> task = new Task<>() {
-            @Override
-            protected CsvImporter.ImportReport call() throws Exception {
-                CsvImporter importer = new CsvImporter(dbManager);
-                CsvImporter.ImportReport report = importer.importFileWithReport(file, (current, total, msg) -> {
-                    updateProgress(current, total);
-                    updateMessage(msg);
-                });
-                cache.refresh();
-                return report;
-            }
-        };
-        progressBar.progressProperty().bind(task.progressProperty());
-        statusLabel.textProperty().bind(task.messageProperty());
-
-        task.setOnSucceeded(e -> {
-            hideBusy();
-            progressBar.progressProperty().unbind();
-            statusLabel.textProperty().unbind();
-            progressBar.setVisible(false);
-
-            CsvImporter.ImportReport report = task.getValue();
-            refreshAllViews();
-
-            int importedCount = report.getImportedCount();
-            int failureCount = report.getFailureCount();
-            statusLabel.setText("Imported " + importedCount + " events"
-                    + (failureCount > 0 ? ", skipped " + failureCount + " rows." : "."));
-
-            if (failureCount > 0) {
-                ToastNotification.show(
-                        "Imported " + importedCount + " events, skipped " + failureCount + " rows.",
-                        ToastNotification.ToastType.WARNING
-                );
-                NotificationService.warning(
-                        "CSV Import Completed With Skips",
-                        importedCount + " imported, " + failureCount + " rows skipped."
-                );
-                showImportDiagnostics(report);
-            } else {
-                ToastNotification.show("Successfully imported " + importedCount + " events from CSV",
-                        ToastNotification.ToastType.SUCCESS);
-                NotificationService.info("CSV Import Complete", importedCount + " events imported successfully.");
-            }
-        });
-        task.setOnFailed(e -> {
-            hideBusy();
-            progressBar.progressProperty().unbind();
-            statusLabel.textProperty().unbind();
-            progressBar.setVisible(false);
-            statusLabel.setText("Import failed: " + task.getException().getMessage());
-            ToastNotification.show("Import failed: " + task.getException().getMessage(),
-                    ToastNotification.ToastType.ERROR);
-        });
-        Thread thread = new Thread(task, "CSVImport");
-        thread.setDaemon(true);
-        thread.start();
-    }
 
     private void handleExportSchedule() {
         FileChooser fc = new FileChooser();
@@ -1937,36 +1865,4 @@ public class DashboardController {
         return start != null && end != null && end > start;
     }
 
-    private void showImportDiagnostics(CsvImporter.ImportReport report) {
-        if (report == null || report.getFailures().isEmpty()) {
-            return;
-        }
-
-        StringBuilder details = new StringBuilder();
-        details.append("Imported ")
-                .append(report.getImportedCount())
-                .append(" of ")
-                .append(report.getTotalRows())
-                .append(" rows.\n")
-                .append("Skipped rows:\n\n");
-
-        for (CsvImporter.ImportFailure failure : report.getFailures()) {
-            details.append("Row ")
-                    .append(failure.getRowNumber())
-                    .append(": ")
-                    .append(failure.getReason())
-                    .append("\n");
-        }
-
-        Alert alert = new Alert(Alert.AlertType.WARNING);
-        alert.setTitle("CSV Import Diagnostics");
-        alert.setHeaderText(report.getFailureCount() + " row(s) were skipped");
-
-        TextArea area = new TextArea(details.toString());
-        area.setEditable(false);
-        area.setWrapText(true);
-        area.setPrefSize(600, 340);
-        alert.getDialogPane().setContent(area);
-        alert.showAndWait();
-    }
 }
