@@ -5,10 +5,13 @@ import edu.facultysync.model.ScheduledEvent.EventType;
 import edu.facultysync.util.TimePolicy;
 
 import java.sql.SQLException;
-import java.util.Calendar;
+import java.time.DayOfWeek;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Objects;
-import java.util.TimeZone;
 
 /**
  * Seeds the database with realistic demonstration data.
@@ -83,7 +86,7 @@ public class SeedData {
 
         // ===== SCHEDULED EVENTS =====
         // Use next Monday as base date for events
-        Calendar base = getNextMonday();
+        LocalDate base = getNextMonday();
 
         // Monday events
         eventDao.insert(makeEvent(cs101, sciA101, EventType.LECTURE, base, 0, 9, 0, 10, 30));   // Mon 9:00-10:30
@@ -171,7 +174,7 @@ public class SeedData {
             return;
         }
 
-        Calendar base = findExistingDemoBaseMonday(eventDao, cs101.getCourseId());
+        LocalDate base = findExistingDemoBaseMonday(eventDao, cs101.getCourseId());
         if (base == null) {
             base = getNextMonday();
         }
@@ -201,20 +204,11 @@ public class SeedData {
             base, 3, 10, 35, 12, 0);
         }
 
-    private static Calendar getNextMonday() {
-        Calendar cal = Calendar.getInstance(TimeZone.getTimeZone(TimePolicy.zone()));
-        int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-        int daysUntilMonday = (Calendar.MONDAY - dayOfWeek + 7) % 7;
-        if (daysUntilMonday == 0) daysUntilMonday = 7; // next Monday, not today
-        cal.add(Calendar.DAY_OF_YEAR, daysUntilMonday);
-        cal.set(Calendar.HOUR_OF_DAY, 0);
-        cal.set(Calendar.MINUTE, 0);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        return cal;
+    private static LocalDate getNextMonday() {
+        return LocalDate.now(TimePolicy.zone()).with(TemporalAdjusters.next(DayOfWeek.MONDAY));
     }
 
-    private static Calendar findExistingDemoBaseMonday(ScheduledEventDAO eventDao, Integer cs101CourseId)
+    private static LocalDate findExistingDemoBaseMonday(ScheduledEventDAO eventDao, Integer cs101CourseId)
             throws SQLException {
         if (cs101CourseId == null) {
             return null;
@@ -227,21 +221,15 @@ public class SeedData {
                 continue;
             }
 
-            Calendar start = Calendar.getInstance(TimeZone.getTimeZone(TimePolicy.zone()));
-            start.setTimeInMillis(e.getStartEpoch());
-            Calendar end = Calendar.getInstance(TimeZone.getTimeZone(TimePolicy.zone()));
-            end.setTimeInMillis(e.getEndEpoch());
+            ZonedDateTime start = Instant.ofEpochMilli(e.getStartEpoch()).atZone(TimePolicy.zone());
+            ZonedDateTime end = Instant.ofEpochMilli(e.getEndEpoch()).atZone(TimePolicy.zone());
 
-            if (start.get(Calendar.DAY_OF_WEEK) == Calendar.MONDAY
-                    && start.get(Calendar.HOUR_OF_DAY) == 9
-                    && start.get(Calendar.MINUTE) == 0
-                    && end.get(Calendar.HOUR_OF_DAY) == 10
-                    && end.get(Calendar.MINUTE) == 30) {
-                start.set(Calendar.HOUR_OF_DAY, 0);
-                start.set(Calendar.MINUTE, 0);
-                start.set(Calendar.SECOND, 0);
-                start.set(Calendar.MILLISECOND, 0);
-                return start;
+            if (start.getDayOfWeek() == DayOfWeek.MONDAY
+                    && start.getHour() == 9
+                    && start.getMinute() == 0
+                    && end.getHour() == 10
+                    && end.getMinute() == 30) {
+                return start.toLocalDate();
             }
         }
         return null;
@@ -284,7 +272,7 @@ public class SeedData {
                                             Integer courseId,
                                             Integer locId,
                                             EventType type,
-                                            Calendar baseMonday,
+                                            LocalDate baseMonday,
                                             int dayOffset,
                                             int startHour,
                                             int startMin,
@@ -314,30 +302,22 @@ public class SeedData {
     }
 
     private static long buildEpoch(Calendar baseMonday, int dayOffset, int hour, int minute) {
-        Calendar cal = (Calendar) baseMonday.clone();
-        cal.add(Calendar.DAY_OF_YEAR, dayOffset);
-        cal.set(Calendar.HOUR_OF_DAY, hour);
-        cal.set(Calendar.MINUTE, minute);
-        cal.set(Calendar.SECOND, 0);
-        cal.set(Calendar.MILLISECOND, 0);
-        return cal.getTimeInMillis();
+        return baseMonday
+            .plusDays(dayOffset)
+            .atTime(hour, minute)
+            .atZone(TimePolicy.zone())
+            .toInstant()
+            .toEpochMilli();
     }
 
     private static ScheduledEvent makeEvent(Course course, Location loc, EventType type,
-                                             Calendar baseMonday, int dayOffset,
+                             LocalDate baseMonday, int dayOffset,
                                              int startHour, int startMin,
                                              int endHour, int endMin) {
-        Calendar start = (Calendar) baseMonday.clone();
-        start.add(Calendar.DAY_OF_YEAR, dayOffset);
-        start.set(Calendar.HOUR_OF_DAY, startHour);
-        start.set(Calendar.MINUTE, startMin);
-
-        Calendar end = (Calendar) baseMonday.clone();
-        end.add(Calendar.DAY_OF_YEAR, dayOffset);
-        end.set(Calendar.HOUR_OF_DAY, endHour);
-        end.set(Calendar.MINUTE, endMin);
+        long startEpoch = buildEpoch(baseMonday, dayOffset, startHour, startMin);
+        long endEpoch = buildEpoch(baseMonday, dayOffset, endHour, endMin);
 
         return new ScheduledEvent(null, course.getCourseId(), loc.getLocId(),
-                type, start.getTimeInMillis(), end.getTimeInMillis());
+            type, startEpoch, endEpoch);
     }
 }

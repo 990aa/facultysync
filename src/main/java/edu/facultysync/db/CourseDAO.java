@@ -7,6 +7,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Data access object for CRUD operations on courses.
+ */
 public class CourseDAO {
     private final DatabaseManager dbManager;
 
@@ -16,6 +19,7 @@ public class CourseDAO {
 
     public Course insert(Course course) throws SQLException {
         String sql = "INSERT INTO courses (course_code, prof_id, enrollment_count) VALUES (?, ?, ?)";
+        Integer newId = null;
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn
                 .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -25,10 +29,12 @@ public class CourseDAO {
             else ps.setNull(3, Types.INTEGER);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) course.setCourseId(keys.getInt(1));
+                if (keys.next()) {
+                    newId = keys.getInt(1);
+                }
             }
         }
-        return course;
+        return newId != null ? course.withCourseId(newId) : course;
     }
 
     public Course findById(int id) throws SQLException {
@@ -102,12 +108,11 @@ public class CourseDAO {
     }
 
     private Course map(ResultSet rs) throws SQLException {
-        Course c = new Course();
-        c.setCourseId(rs.getInt("course_id"));
-        c.setCourseCode(rs.getString("course_code"));
-        c.setProfId(rs.getInt("prof_id"));
+        Integer courseId = rs.getInt("course_id");
+        String courseCode = rs.getString("course_code");
+        Integer profId = rs.getInt("prof_id");
         int enroll = rs.getInt("enrollment_count");
-        c.setEnrollmentCount(rs.wasNull() ? null : enroll);
-        return c;
+        Integer enrollment = rs.wasNull() ? null : enroll;
+        return new Course(courseId, courseCode, profId, enrollment);
     }
 }

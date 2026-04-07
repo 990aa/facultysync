@@ -293,7 +293,7 @@ class SeedDataTest {
         assertNotNull(cs101);
 
         // Simulate a user editing a demo course code format.
-        cs101.setCourseCode("CS 101");
+        cs101 = cs101.withCourseCode("CS 101");
         courseDao.update(cs101);
 
         edu.facultysync.service.DataCache cache = new edu.facultysync.service.DataCache(dbManager);

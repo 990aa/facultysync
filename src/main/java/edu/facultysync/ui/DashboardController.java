@@ -870,10 +870,10 @@ public class DashboardController {
                     return;
                 }
                 runDbTask("EditDepartmentFromManager", "Saving department...", () -> {
-                    selected.setName(trimmed);
-                    new DepartmentDAO(dbManager).update(selected);
+                    Department updated = selected.withName(trimmed);
+                    new DepartmentDAO(dbManager).update(updated);
                     cache.refresh();
-                    return selected;
+                    return updated;
                 }, updated -> {
                     refreshAllViews();
                     reload.run();

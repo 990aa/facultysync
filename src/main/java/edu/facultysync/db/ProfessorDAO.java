@@ -7,6 +7,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Data access object for CRUD operations on professors.
+ */
 public class ProfessorDAO {
     private final DatabaseManager dbManager;
 
@@ -16,6 +19,7 @@ public class ProfessorDAO {
 
     public Professor insert(Professor prof) throws SQLException {
         String sql = "INSERT INTO professors (name, dept_id) VALUES (?, ?)";
+        Integer newId = null;
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn
                 .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -23,10 +27,12 @@ public class ProfessorDAO {
             ps.setInt(2, prof.getDeptId());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) prof.setProfId(keys.getInt(1));
+                if (keys.next()) {
+                    newId = keys.getInt(1);
+                }
             }
         }
-        return prof;
+        return newId != null ? prof.withProfId(newId) : prof;
     }
 
     public Professor findById(int id) throws SQLException {

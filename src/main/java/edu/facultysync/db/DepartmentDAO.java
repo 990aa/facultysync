@@ -7,6 +7,9 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Data access object for CRUD operations on departments.
+ */
 public class DepartmentDAO {
     private final DatabaseManager dbManager;
 
@@ -16,16 +19,19 @@ public class DepartmentDAO {
 
     public Department insert(Department dept) throws SQLException {
         String sql = "INSERT INTO departments (name) VALUES (?)";
+        Integer newId = null;
         try (Connection conn = dbManager.getConnection();
              PreparedStatement ps = conn
                 .prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, dept.getName());
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) dept.setDeptId(keys.getInt(1));
+                if (keys.next()) {
+                    newId = keys.getInt(1);
+                }
             }
         }
-        return dept;
+        return newId != null ? dept.withDeptId(newId) : dept;
     }
 
     public Department findById(int id) throws SQLException {

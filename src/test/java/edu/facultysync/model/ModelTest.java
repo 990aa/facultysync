@@ -3,8 +3,6 @@ package edu.facultysync.model;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.NullSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -31,9 +29,9 @@ class ModelTest {
 
     @Test
     void department_settersGetters() {
-        Department d = new Department();
-        d.setDeptId(5);
-        d.setName("Math");
+        Department d = new Department()
+                .withDeptId(5)
+                .withName("Math");
         assertEquals(5, d.getDeptId());
         assertEquals("Math", d.getName());
     }
@@ -45,8 +43,7 @@ class ModelTest {
 
     @Test
     void department_toStringWithoutName() {
-        Department d = new Department();
-        d.setDeptId(7);
+        Department d = new Department().withDeptId(7);
         assertEquals("Department#7", d.toString());
     }
 
@@ -108,10 +105,10 @@ class ModelTest {
 
     @Test
     void professor_settersGetters() {
-        Professor p = new Professor();
-        p.setProfId(3);
-        p.setName("Dr. Jones");
-        p.setDeptId(4);
+        Professor p = new Professor()
+                .withProfId(3)
+                .withName("Dr. Jones")
+                .withDeptId(4);
         assertEquals(3, p.getProfId());
         assertEquals("Dr. Jones", p.getName());
         assertEquals(4, p.getDeptId());
@@ -120,8 +117,7 @@ class ModelTest {
     @Test
     void professor_toString() {
         assertEquals("Dr. Smith", new Professor(1, "Dr. Smith", 1).toString());
-        Professor p = new Professor();
-        p.setProfId(5);
+        Professor p = new Professor().withProfId(5);
         assertEquals("Professor#5", p.toString());
     }
 
@@ -156,11 +152,11 @@ class ModelTest {
 
     @Test
     void course_settersGetters() {
-        Course c = new Course();
-        c.setCourseId(10);
-        c.setCourseCode("MATH200");
-        c.setProfId(3);
-        c.setEnrollmentCount(null); // test nullable wrapper
+        Course c = new Course()
+                .withCourseId(10)
+                .withCourseCode("MATH200")
+                .withProfId(3)
+                .withEnrollmentCount(null); // test nullable wrapper
         assertEquals(10, c.getCourseId());
         assertEquals("MATH200", c.getCourseCode());
         assertEquals(3, c.getProfId());
@@ -170,8 +166,7 @@ class ModelTest {
     @Test
     void course_toString() {
         assertEquals("CS101", new Course(1, "CS101", 1, 30).toString());
-        Course c = new Course();
-        c.setCourseId(7);
+        Course c = new Course().withCourseId(7);
         assertEquals("Course#7", c.toString());
     }
 

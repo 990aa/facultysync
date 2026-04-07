@@ -113,11 +113,11 @@ class DatabaseTest {
     void testUpdateDepartment() throws SQLException {
         DepartmentDAO dao = new DepartmentDAO(dbManager);
         Department d = dao.findById(1);
-        d.setName("CS Department");
+        d = d.withName("CS Department");
         dao.update(d);
         assertEquals("CS Department", dao.findById(1).getName());
         // restore
-        d.setName("Computer Science");
+        d = d.withName("Computer Science");
         dao.update(d);
     }
 
@@ -176,10 +176,10 @@ class DatabaseTest {
     void testUpdateProfessor() throws SQLException {
         ProfessorDAO dao = new ProfessorDAO(dbManager);
         Professor p = dao.findById(1);
-        p.setName("Dr. Smith Jr.");
+        p = p.withName("Dr. Smith Jr.");
         dao.update(p);
         assertEquals("Dr. Smith Jr.", dao.findById(1).getName());
-        p.setName("Dr. Smith");
+        p = p.withName("Dr. Smith");
         dao.update(p);
     }
 
@@ -237,7 +237,7 @@ class DatabaseTest {
     void testUpdateCourse() throws SQLException {
         CourseDAO dao = new CourseDAO(dbManager);
         Course c = dao.findByCode("CS101");
-        c.setEnrollmentCount(40);
+        c = c.withEnrollmentCount(40);
         dao.update(c);
         assertEquals(40, dao.findById(c.getCourseId()).getEnrollmentCount());
     }
