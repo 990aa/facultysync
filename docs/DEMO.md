@@ -4,10 +4,10 @@ This runbook is written for the current codebase and assumes you start from seed
 
 ## 1. Pre-Demo Setup
 
-Run the seed-only script first:
+Run the seed-only script in deterministic mode first:
 
 ```bash
-./gradlew seedDb
+./gradlew seedDb --args="--reset"
 ```
 
 Expected seed output includes:

@@ -9,6 +9,9 @@ import edu.facultysync.service.DataCache;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.sql.Connection;
+import java.sql.Statement;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -22,11 +25,20 @@ public class SeedDatabase {
 
     public static void main(String[] args) {
         LOG.info("=== FacultySync - Seed Database Script ===");
+        boolean reset = Arrays.stream(args).anyMatch("--reset"::equalsIgnoreCase);
 
         DatabaseManager dbManager = new DatabaseManager();
         try {
             dbManager.initializeSchema();
-            SeedData.seedIfEmpty(dbManager);
+
+            if (reset) {
+                LOG.info("[INFO] --reset mode enabled. Clearing demo tables before seeding.");
+                clearData(dbManager);
+                SeedData.seed(dbManager);
+            } else {
+                SeedData.seedIfEmpty(dbManager);
+            }
+
             SeedData.ensureIntentionalConflicts(dbManager);
 
             DataCache cache = new DataCache(dbManager);
@@ -61,6 +73,17 @@ public class SeedDatabase {
             System.exit(1);
         } finally {
             dbManager.close();
+        }
+    }
+
+    private static void clearData(DatabaseManager dbManager) throws Exception {
+        try (Connection conn = dbManager.getConnection(); Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("DELETE FROM scheduled_events");
+            stmt.executeUpdate("DELETE FROM courses");
+            stmt.executeUpdate("DELETE FROM professors");
+            stmt.executeUpdate("DELETE FROM departments");
+            stmt.executeUpdate("DELETE FROM locations");
+            stmt.executeUpdate("DELETE FROM sqlite_sequence");
         }
     }
 }

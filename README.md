@@ -73,10 +73,16 @@ For command-line seeding only (no auto-resolve), use:
 ./gradlew seedDb
 ```
 
+For a deterministic demo baseline (clear existing app data, then reseed):
+
+```bash
+./gradlew seedDb --args="--reset"
+```
+
 What `seedDb` does:
 
 1. Initializes schema
-2. Seeds demo entities if the DB is empty
+2. Seeds demo entities if the DB is empty, or reseeds from scratch in `--reset` mode
 3. Restores intentional demo conflicts (idempotent upsert)
 4. Prints entity totals and detected conflict counts by severity
 

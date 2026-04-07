@@ -18,6 +18,7 @@ This document reflects the current implementation in the repository.
 ./gradlew test
 ./gradlew run
 ./gradlew seedDb
+./gradlew seedDb --args="--reset"
 ```
 
 `seedDb` is seed-only (no auto-resolve).
@@ -109,8 +110,9 @@ Behavior:
 
 1. initialize schema
 2. seed reference and schedule data if DB is empty
-3. re-apply intentional demo conflicts idempotently
-4. print totals and conflict counts by severity
+3. optionally clear and reseed all demo tables in `--reset` mode
+4. re-apply intentional demo conflicts idempotently
+5. print totals and conflict counts by severity
 
 ### Seed Data Coverage
 
