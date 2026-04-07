@@ -720,7 +720,7 @@ public class DashboardController {
                 }, created -> {
                     refreshAllViews();
                     reload.run();
-                });
+        Tab scheduleTab = new Tab("  " + UiTokens.Icons.SCHEDULE + " Schedule  ", scheduleView.getView());
             });
         });
 
@@ -807,23 +807,23 @@ public class DashboardController {
             return new SimpleStringProperty(dept != null ? dept.getName() : "Unknown");
         });
 
-        table.getColumns().add(nameCol);
+        Button importBtn = createSidebarButton(UiTokens.Icons.IMPORT + " Import CSV", "primary-btn");
         table.getColumns().add(deptCol);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
 
-        Runnable reload = () -> table.setItems(FXCollections.observableArrayList(
+        Button exportScheduleBtn = createSidebarButton(UiTokens.Icons.EXPORT + " Export Schedule", null);
                 cache.getAllProfessors().values().stream()
                         .sorted(Comparator.comparing(Professor::getName, String.CASE_INSENSITIVE_ORDER))
                         .toList()
-        ));
+        Button exportConflictBtn = createSidebarButton(UiTokens.Icons.REPORT + " Export Conflicts", null);
         reload.run();
 
         Button addBtn = new Button("Add");
-        addBtn.setOnAction(e -> openProfessorEditor(null).ifPresent(prof ->
+        Button analyzeBtn = createSidebarButton(UiTokens.Icons.WARNING + " Analyze Conflicts", "warning-btn");
                 runDbTask("AddProfessorFromManager", "Adding professor...", () -> {
                     Professor created = new ProfessorDAO(dbManager).insert(prof);
                     cache.refresh();
-                    return created;
+        Button autoResolveBtn = createSidebarButton(UiTokens.Icons.RESOLVE + " Auto-Resolve", "resolve-btn");
                 }, created -> {
                     refreshAllViews();
                     reload.run();
@@ -833,46 +833,46 @@ public class DashboardController {
         Button editBtn = new Button("Edit");
         editBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
         editBtn.setOnAction(e -> {
-            Professor selected = table.getSelectionModel().getSelectedItem();
+        Button manageDeptBtn = createSidebarButton(UiTokens.Icons.REPORT + " Departments", null);
             if (selected == null) {
                 return;
             }
-            openProfessorEditor(selected).ifPresent(updated ->
+        Button manageProfBtn = createSidebarButton(UiTokens.Icons.REPORT + " Professors", null);
                     runDbTask("EditProfessorFromManager", "Saving professor...", () -> {
                         new ProfessorDAO(dbManager).update(updated);
                         cache.refresh();
-                        return updated;
+        Button manageCourseBtn = createSidebarButton(UiTokens.Icons.REPORT + " Courses", null);
                     }, result -> {
                         refreshAllViews();
                         reload.run();
-                    })
+        Button manageLocationBtn = createSidebarButton(UiTokens.Icons.REPORT + " Locations", null);
             );
         });
 
-        Button deleteBtn = new Button("Delete");
+        Button addDeptBtn = createSidebarButton(UiTokens.Icons.ADD + " Department", null);
         deleteBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
         deleteBtn.setOnAction(e -> {
             Professor selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) {
+        Button addProfBtn = createSidebarButton(UiTokens.Icons.ADD + " Professor", null);
                 return;
             }
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION);
-            confirm.setTitle("Delete Professor");
+        Button addCourseBtn = createSidebarButton(UiTokens.Icons.ADD + " Course", null);
             confirm.setHeaderText("Delete " + selected.getName() + "?");
             confirm.setContentText("This cascades to courses and events linked to this professor.");
             confirm.showAndWait().ifPresent(btn -> {
-                if (btn != ButtonType.OK) {
+        Button addLocationBtn = createSidebarButton(UiTokens.Icons.ADD + " Location", null);
                     return;
                 }
                 runDbTask("DeleteProfessorFromManager", "Deleting professor...", () -> {
-                    new ProfessorDAO(dbManager).delete(selected.getProfId());
+        Button addEventBtn = createSidebarButton(UiTokens.Icons.ADD + " Event", null);
                     cache.refresh();
                     return selected.getProfId();
                 }, id -> {
                     refreshAllViews();
                     reload.run();
                 });
-            });
+        Button refreshBtn = createSidebarButton(UiTokens.Icons.REFRESH + " Refresh All", null);
         });
 
         HBox actions = new HBox(8, addBtn, editBtn, deleteBtn);
