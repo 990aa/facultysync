@@ -184,13 +184,13 @@ class DashboardAnalyticsUiTest {
                 return collectNodes(root, BarChart.class).size() >= 2;
             }), 15000);
 
-                List<BarChart> bars = onFxCall(() -> collectNodes(stageRef.get().getScene().getRoot(), BarChart.class));
+                List<BarChart<?, ?>> bars = onFxCall(() -> collectBarCharts(stageRef.get().getScene().getRoot()));
             List<PieChart> pies = onFxCall(() -> collectNodes(stageRef.get().getScene().getRoot(), PieChart.class));
 
             assertTrue(bars.size() >= 2, "Analytics should render bar charts");
             assertTrue(pies.size() >= 2, "Analytics should render pie charts");
 
-            for (BarChart bar : bars) {
+            for (BarChart<?, ?> bar : bars) {
                 assertTrue(bar.isLegendVisible(), "Bar chart legend should be visible");
                 assertNotNull(bar.getXAxis(), "Bar chart should expose X axis");
                 assertNotNull(bar.getYAxis(), "Bar chart should expose Y axis");
@@ -245,15 +245,6 @@ class DashboardAnalyticsUiTest {
         onFx(stage::close);
     }
 
-    private boolean containsLabel(Node root, String expectedText) {
-        for (Label label : collectNodes(root, Label.class)) {
-            if (expectedText.equals(label.getText())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private boolean containsLabelContaining(Node root, String textFragment) {
         for (Label label : collectNodes(root, Label.class)) {
             String text = label.getText();
@@ -275,6 +266,11 @@ class DashboardAnalyticsUiTest {
             }
         }
         return found;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<BarChart<?, ?>> collectBarCharts(Node root) {
+        return (List<BarChart<?, ?>>) (List<?>) collectNodes(root, BarChart.class);
     }
 
     private void waitUntil(BooleanSupplier condition, long timeoutMs) throws Exception {
