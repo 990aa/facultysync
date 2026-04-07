@@ -7,8 +7,9 @@ This document describes the current implementation after the architecture modern
 - Language: Java (toolchain set in build.gradle)
 - UI: JavaFX controls/graphics
 - Database: SQLite via JDBC
+- CSV handling: in-project parser in CsvImporter
 - Logging: SLF4J + Logback
-- Eventing: Guava EventBus
+- Eventing: internal typed AppEventBus
 - Build: Gradle wrapper
 - Tests: JUnit 5
 
@@ -25,9 +26,8 @@ Module descriptor: src/main/java/module-info.java
 
 Current approach:
 
-- explicit requires for JavaFX, SQL, desktop, logging, CSV, and event bus dependency
+- explicit requires for JavaFX, SQL, desktop, and logging
 - only top-level app package is exported
-- UI package opened to com.google.common for EventBus subscriber reflection
 
 This keeps internal implementation packages encapsulated while preserving runtime event dispatch.
 
@@ -165,6 +165,10 @@ Event bus payloads:
 
 - DataChangedEvent
 - CourseAddedEvent
+
+Bus implementation:
+
+- edu.facultysync.events.AppEventBus (in-process, typed subscribe/post API)
 
 Pattern:
 
