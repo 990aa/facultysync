@@ -77,6 +77,7 @@ public class DashboardController {
         rootStack = new StackPane(root);
         rootStack.getStyleClass().add("root-stack");
         ToastNotification.initialize(rootStack);
+        initializeBusyOverlay();
 
         refreshData();
     }
@@ -127,10 +128,18 @@ public class DashboardController {
 
         // Refresh views when tab is selected
         tabPane.getSelectionModel().selectedItemProperty().addListener((obs, oldTab, newTab) -> {
-            if (newTab == homeTab) homePage.refresh();
-            else if (newTab == calendarTab) calendarView.refresh();
-            else if (newTab == analyticsTab) analyticsView.refresh();
-            else if (newTab == scheduleTab) refreshData();
+            if (newTab == homeTab) {
+                showBusy("Loading Home...");
+                homePage.refresh(this::hideBusy);
+            } else if (newTab == calendarTab) {
+                showBusy("Loading Calendar...");
+                calendarView.refresh(this::hideBusy);
+            } else if (newTab == analyticsTab) {
+                showBusy("Loading Analytics...");
+                analyticsView.refresh(this::hideBusy);
+            } else if (newTab == scheduleTab) {
+                refreshData();
+            }
         });
 
         pane.setCenter(tabPane);
@@ -218,11 +227,18 @@ public class DashboardController {
 
         Button refreshBtn = createSidebarButton("\u21BB Refresh All", null);
         refreshBtn.setId("refreshBtn");
-        refreshBtn.setOnAction(e -> {
-            try { cache.refresh(); } catch (SQLException ignored) {}
-            refreshData();
-            ToastNotification.show("Data refreshed", ToastNotification.ToastType.INFO);
-        });
+        refreshBtn.setOnAction(e -> runDbTask(
+                "RefreshAllData",
+                "Refreshing all data...",
+                () -> {
+                    cache.refresh();
+                    return null;
+                },
+                unused -> {
+                    refreshAllViews();
+                    ToastNotification.show("Data refreshed", ToastNotification.ToastType.INFO);
+                }
+        ));
 
         panel.getChildren().addAll(
                 title, subtitle, new Separator(),
@@ -295,6 +311,29 @@ public class DashboardController {
         emptyLabel.getStyleClass().add("empty-state-label");
         emptyLabel.setWrapText(true);
         eventTable.setPlaceholder(emptyLabel);
+
+        eventTable.setRowFactory(tv -> {
+            TableRow<ScheduledEvent> row = new TableRow<>();
+
+            MenuItem editItem = new MenuItem("Edit Event");
+            editItem.setOnAction(e -> handleEditEvent(row.getItem()));
+
+            MenuItem deleteItem = new MenuItem("Delete Event");
+            deleteItem.setOnAction(e -> handleDeleteEvent(row.getItem()));
+
+            ContextMenu menu = new ContextMenu(editItem, deleteItem);
+            row.emptyProperty().addListener((obs, wasEmpty, isEmpty) -> row.setContextMenu(isEmpty ? null : menu));
+            row.setContextMenu(row.isEmpty() ? null : menu);
+
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    handleEditEvent(row.getItem());
+                }
+            });
+
+            return row;
+        });
+
         VBox.setVgrow(eventTable, Priority.ALWAYS);
 
         box.getChildren().add(eventTable);
@@ -374,6 +413,10 @@ public class DashboardController {
     // ========== DATA ==========
 
     private void refreshData() {
+        refreshData(null);
+    }
+
+    private void refreshData(Runnable onComplete) {
         Task<List<ScheduledEvent>> task = new Task<>() {
             @Override
             protected List<ScheduledEvent> call() throws Exception {
@@ -385,9 +428,19 @@ public class DashboardController {
         task.setOnSucceeded(e -> {
             eventTable.setItems(FXCollections.observableArrayList(task.getValue()));
             statusLabel.setText("Loaded " + task.getValue().size() + " events.");
+            if (onComplete != null) {
+                onComplete.run();
+            }
         });
-        task.setOnFailed(e -> statusLabel.setText("Error loading events: " + task.getException().getMessage()));
-        new Thread(task, "RefreshData").start();
+        task.setOnFailed(e -> {
+            statusLabel.setText("Error loading events: " + task.getException().getMessage());
+            if (onComplete != null) {
+                onComplete.run();
+            }
+        });
+        Thread thread = new Thread(task, "RefreshData");
+        thread.setDaemon(true);
+        thread.start();
     }
 
     // ========== HANDLERS ==========
