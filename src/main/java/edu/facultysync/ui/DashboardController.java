@@ -1743,9 +1743,7 @@ public class DashboardController {
         cancelActiveViewRefreshes();
         refreshData();
         departmentCombo.getItems().setAll(sortedDepartments());
-        homePage.refresh();
-        calendarView.refresh();
-        analyticsView.refresh();
+        eventBus.post(new DataChangedEvent("dashboard-refresh"));
     }
 
     private List<ScheduledEvent> sortEventsChronologically(List<ScheduledEvent> events) {

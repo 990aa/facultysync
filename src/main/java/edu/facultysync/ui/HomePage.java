@@ -1,11 +1,15 @@
 package edu.facultysync.ui;
 
+import com.google.common.eventbus.EventBus;
+import com.google.common.eventbus.Subscribe;
 import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.ScheduledEventDAO;
+import edu.facultysync.events.DataChangedEvent;
 import edu.facultysync.model.ScheduledEvent;
 import edu.facultysync.service.DataCache;
 import edu.facultysync.util.TimePolicy;
 
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -27,16 +31,30 @@ public class HomePage {
     private final DatabaseManager dbManager;
     private final DataCache cache;
     private final TabPane tabPane;
+    private final EventBus eventBus;
     private final VBox content;
     private Task<HomeSnapshot> activeRefreshTask;
 
     public HomePage(DatabaseManager dbManager, DataCache cache, TabPane tabPane) {
+        this(dbManager, cache, tabPane, null);
+    }
+
+    public HomePage(DatabaseManager dbManager, DataCache cache, TabPane tabPane, EventBus eventBus) {
         this.dbManager = dbManager;
         this.cache = cache;
         this.tabPane = tabPane;
+        this.eventBus = eventBus;
         this.content = new VBox();
         this.content.getStyleClass().add("home-page");
+        if (this.eventBus != null) {
+            this.eventBus.register(this);
+        }
         refresh();
+    }
+
+    @Subscribe
+    public void onDataChanged(DataChangedEvent event) {
+        Platform.runLater(this::refresh);
     }
 
     public VBox getContent() {

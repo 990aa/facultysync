@@ -1,7 +1,10 @@
 package edu.facultysync.ui;
 
+import com.google.common.eventbus.EventBus;
+import com.google.common.eventbus.Subscribe;
 import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.ScheduledEventDAO;
+import edu.facultysync.events.DataChangedEvent;
 import edu.facultysync.model.ConflictResult;
 import edu.facultysync.model.Course;
 import edu.facultysync.model.ScheduledEvent;
@@ -9,6 +12,7 @@ import edu.facultysync.service.ConflictEngine;
 import edu.facultysync.service.DataCache;
 import edu.facultysync.util.TimePolicy;
 
+import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -68,6 +72,7 @@ public class CalendarView {
     private final DatabaseManager dbManager;
     private final DataCache cache;
     private final ConflictEngine conflictEngine;
+    private final EventBus eventBus;
     private final VBox root;
 
     private GridPane calendarGrid;
@@ -83,13 +88,26 @@ public class CalendarView {
     private Task<CalendarSnapshot> activeRefreshTask;
 
     public CalendarView(DatabaseManager dbManager, DataCache cache) {
+        this(dbManager, cache, null);
+    }
+
+    public CalendarView(DatabaseManager dbManager, DataCache cache, EventBus eventBus) {
         this.dbManager = dbManager;
         this.cache = cache;
         this.conflictEngine = new ConflictEngine(dbManager, cache);
+        this.eventBus = eventBus;
 
         setWeekFromDate(LocalDate.now());
         root = buildView();
+        if (this.eventBus != null) {
+            this.eventBus.register(this);
+        }
         refresh();
+    }
+
+    @Subscribe
+    public void onDataChanged(DataChangedEvent event) {
+        Platform.runLater(this::refresh);
     }
 
     public VBox getView() {
