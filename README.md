@@ -9,7 +9,7 @@ FacultySync is a JavaFX desktop application for university schedule operations:
 
 ## Download
 
-Latest release: [v0.8.0](https://github.com/990aa/facultysync/releases/latest)
+Latest release: [v0.8.1](https://github.com/990aa/facultysync/releases/latest)
 
 ## Core Features
 
