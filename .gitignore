@@ -25,3 +25,6 @@ local.properties
 # Custom
 *.xml
 *.db
+
+repomix.config.json
+gradle
