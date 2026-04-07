@@ -32,6 +32,11 @@ public class AutoResolver {
         this.conflictEngine = new ConflictEngine(dbManager, cache);
     }
 
+    @FunctionalInterface
+    public interface ProgressCallback {
+        void onProgress(int current, int total, String message);
+    }
+
     /**
      * Result of an auto-resolve session.
      */
@@ -59,6 +64,13 @@ public class AutoResolver {
      * @return summary of the resolution session
      */
     public ResolveResult resolveAll() throws SQLException {
+        return resolveAll(null);
+    }
+
+    /**
+     * Attempt to automatically resolve actionable conflicts with progress updates.
+     */
+    public ResolveResult resolveAll(ProgressCallback progressCallback) throws SQLException {
         cache.refresh();
         ScheduledEventDAO eventDao = new ScheduledEventDAO(dbManager);
         LocationDAO locationDao = new LocationDAO(dbManager);
@@ -85,12 +97,25 @@ public class AutoResolver {
         int unresolvable = 0;
         List<String> actions = new ArrayList<>();
 
+        if (progressCallback != null) {
+            if (totalConflicts == 0) {
+                progressCallback.onProgress(1, 1, "No resolvable conflicts found.");
+            } else {
+                progressCallback.onProgress(0, totalConflicts, "Auto-resolve started...");
+            }
+        }
+
+        int processed = 0;
+
         for (ConflictResult conflict : actionable) {
             ScheduledEvent eventToMove = conflict.getEventB();
             if (eventToMove == null || eventToMove.getEventId() == null
                     || eventToMove.getStartEpoch() == null || eventToMove.getEndEpoch() == null) {
                 unresolvable++;
                 actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — invalid event data");
+                processed++;
+                reportProgress(progressCallback, processed, totalConflicts,
+                        "Skipped invalid conflict data (" + processed + "/" + totalConflicts + ")");
                 continue;
             }
 
@@ -98,6 +123,9 @@ public class AutoResolver {
             if (mutableEvent == null) {
                 unresolvable++;
                 actions.add("UNRESOLVABLE: " + formatEvent(eventToMove, conflict) + " — event missing in working set");
+                processed++;
+                reportProgress(progressCallback, processed, totalConflicts,
+                        "Skipped stale conflict data (" + processed + "/" + totalConflicts + ")");
                 continue;
             }
 
@@ -128,6 +156,9 @@ public class AutoResolver {
             if (available.isEmpty()) {
                 unresolvable++;
                 actions.add("UNRESOLVABLE: " + formatEvent(mutableEvent, conflict) + " — no alternative rooms available");
+                processed++;
+                reportProgress(progressCallback, processed, totalConflicts,
+                        "No alternative rooms for event " + safeEventLabel(mutableEvent));
                 continue;
             }
 
@@ -170,10 +201,29 @@ public class AutoResolver {
                 unresolvable++;
                 actions.add("UNRESOLVABLE: " + formatEvent(mutableEvent, conflict) + " — all alternatives still conflict");
             }
+
+            processed++;
+            reportProgress(progressCallback, processed, totalConflicts,
+                    "Processed " + safeEventLabel(mutableEvent) + " (" + processed + "/" + totalConflicts + ")");
         }
 
         cache.refresh();
         return new ResolveResult(totalConflicts, resolved, unresolvable, actions);
+    }
+
+    private void reportProgress(ProgressCallback callback, int current, int total, String message) {
+        if (callback != null) {
+            callback.onProgress(current, Math.max(total, 1), message);
+        }
+    }
+
+    private String safeEventLabel(ScheduledEvent event) {
+        if (event == null) {
+            return "event";
+        }
+        return event.getCourseCode() != null
+                ? event.getCourseCode()
+                : "Event#" + event.getEventId();
     }
 
     private boolean involvesEvent(ConflictResult conflict, int eventId) {

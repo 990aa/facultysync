@@ -9,13 +9,16 @@ import edu.facultysync.service.AutoResolver;
 import edu.facultysync.service.ConflictEngine;
 import edu.facultysync.service.DataCache;
 import edu.facultysync.service.NotificationService;
+import edu.facultysync.util.TimePolicy;
 
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -25,7 +28,6 @@ import javafx.stage.Stage;
 
 import java.io.File;
 import java.sql.SQLException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.function.Consumer;
@@ -36,8 +38,6 @@ import java.util.function.Consumer;
  * Integrates toast notifications, auto-resolve, drag-drop calendar, and analytics charts.
  */
 public class DashboardController {
-
-    private static final SimpleDateFormat DATE_FMT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
 
     private final DatabaseManager dbManager;
     private final Stage stage;
@@ -201,6 +201,22 @@ public class DashboardController {
         Label manageLabel = new Label("\u2699 Manage Data");
         manageLabel.getStyleClass().add("sidebar-section-label");
 
+        Button manageDeptBtn = createSidebarButton("\uD83D\uDCCB Departments", null);
+        manageDeptBtn.setId("manageDeptBtn");
+        manageDeptBtn.setOnAction(e -> handleManageDepartments());
+
+        Button manageProfBtn = createSidebarButton("\uD83D\uDCCB Professors", null);
+        manageProfBtn.setId("manageProfBtn");
+        manageProfBtn.setOnAction(e -> handleManageProfessors());
+
+        Button manageCourseBtn = createSidebarButton("\uD83D\uDCCB Courses", null);
+        manageCourseBtn.setId("manageCourseBtn");
+        manageCourseBtn.setOnAction(e -> handleManageCourses());
+
+        Button manageLocationBtn = createSidebarButton("\uD83D\uDCCB Locations", null);
+        manageLocationBtn.setId("manageLocationBtn");
+        manageLocationBtn.setOnAction(e -> handleManageLocations());
+
         Button addDeptBtn = createSidebarButton("\u2795 Department", null);
         addDeptBtn.setId("addDeptBtn");
         addDeptBtn.setOnAction(e -> handleAddDepartment());
@@ -245,6 +261,7 @@ public class DashboardController {
                 importBtn, exportScheduleBtn, exportConflictBtn,
                 analyzeBtn, autoResolveBtn,
                 sep1, manageLabel,
+                manageDeptBtn, manageProfBtn, manageCourseBtn, manageLocationBtn,
                 addDeptBtn, addProfBtn, addCourseBtn, addLocationBtn, addEventBtn,
                 sep2, refreshBtn
         );
@@ -287,15 +304,15 @@ public class DashboardController {
                 new SimpleStringProperty(cd.getValue().getProfessorName() != null
                         ? cd.getValue().getProfessorName() : ""));
 
-        TableColumn<ScheduledEvent, String> startCol = new TableColumn<>("Start");
+        TableColumn<ScheduledEvent, String> startCol = new TableColumn<>("Start (UTC)");
         startCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getStartEpoch() != null
-                        ? DATE_FMT.format(new Date(cd.getValue().getStartEpoch())) : ""));
+                ? TimePolicy.formatEpoch(cd.getValue().getStartEpoch()) : ""));
 
-        TableColumn<ScheduledEvent, String> endCol = new TableColumn<>("End");
+        TableColumn<ScheduledEvent, String> endCol = new TableColumn<>("End (UTC)");
         endCol.setCellValueFactory(cd ->
                 new SimpleStringProperty(cd.getValue().getEndEpoch() != null
-                        ? DATE_FMT.format(new Date(cd.getValue().getEndEpoch())) : ""));
+                ? TimePolicy.formatEpoch(cd.getValue().getEndEpoch()) : ""));
 
         TableColumn<ScheduledEvent, String> durCol = new TableColumn<>("Duration");
         durCol.setCellValueFactory(cd ->
@@ -361,6 +378,8 @@ public class DashboardController {
                     indicator.setArcHeight(3);
                     if ("HARD_OVERLAP".equals(item)) {
                         indicator.setFill(Color.web("#e74c3c"));
+                    } else if ("PROFESSOR_OVERLAP".equals(item)) {
+                        indicator.setFill(Color.web("#c0392b"));
                     } else {
                         indicator.setFill(Color.web("#f39c12"));
                     }
@@ -603,10 +622,11 @@ public class DashboardController {
             conflictTable.setItems(FXCollections.observableArrayList(conflicts));
 
             long hard = conflicts.stream().filter(c -> c.getSeverity() == Severity.HARD_OVERLAP).count();
+                long professorOverlap = conflicts.stream().filter(c -> c.getSeverity() == Severity.PROFESSOR_OVERLAP).count();
             long tight = conflicts.stream().filter(c -> c.getSeverity() == Severity.TIGHT_TRANSITION).count();
             conflictSummaryLabel.setText(String.format(
-                    "Total: %d conflicts (%d hard overlaps, %d tight transitions)",
-                    conflicts.size(), hard, tight));
+                    "Total: %d conflicts (%d room overlaps, %d professor overlaps, %d tight transitions)",
+                    conflicts.size(), hard, professorOverlap, tight));
 
             statusLabel.setText("Analysis complete. " + conflicts.size() + " conflicts found.");
 
@@ -615,9 +635,12 @@ public class DashboardController {
                 NotificationService.info("Conflict Analysis", "No scheduling conflicts detected.");
             } else {
                 ToastNotification.show(conflicts.size() + " conflicts detected! Double-click to reassign.",
-                        hard > 0 ? ToastNotification.ToastType.WARNING : ToastNotification.ToastType.INFO);
+                    (hard > 0 || professorOverlap > 0)
+                        ? ToastNotification.ToastType.WARNING
+                        : ToastNotification.ToastType.INFO);
                 NotificationService.warning("Conflicts Detected",
-                        conflicts.size() + " conflicts found (" + hard + " hard overlaps).");
+                    conflicts.size() + " conflicts found (" + hard + " room overlaps, "
+                        + professorOverlap + " professor overlaps).");
             }
 
             // Switch to conflicts tab
@@ -637,7 +660,7 @@ public class DashboardController {
 
     private void handleAutoResolve() {
         progressBar.setVisible(true);
-        progressBar.setProgress(-1);
+        progressBar.setProgress(0);
         statusLabel.setText("Auto-resolving conflicts...");
         showBusy("Auto-resolving conflicts...");
 
@@ -645,11 +668,18 @@ public class DashboardController {
             @Override
             protected AutoResolver.ResolveResult call() throws Exception {
                 AutoResolver resolver = new AutoResolver(dbManager, cache);
-                return resolver.resolveAll();
+                return resolver.resolveAll((current, total, message) -> {
+                    updateProgress(current, total);
+                    updateMessage(message);
+                });
             }
         };
+        progressBar.progressProperty().bind(task.progressProperty());
+        statusLabel.textProperty().bind(task.messageProperty());
         task.setOnSucceeded(e -> {
             hideBusy();
+            progressBar.progressProperty().unbind();
+            statusLabel.textProperty().unbind();
             progressBar.setVisible(false);
             progressBar.setProgress(0);
             AutoResolver.ResolveResult result = task.getValue();
@@ -691,6 +721,8 @@ public class DashboardController {
         });
         task.setOnFailed(e -> {
             hideBusy();
+            progressBar.progressProperty().unbind();
+            statusLabel.textProperty().unbind();
             progressBar.setVisible(false);
             statusLabel.setText("Auto-resolve failed: " + task.getException().getMessage());
             ToastNotification.show("Auto-resolve failed", ToastNotification.ToastType.ERROR);
@@ -839,7 +871,7 @@ public class DashboardController {
         ComboBox<Professor> profBox = new ComboBox<>();
         profBox.getItems().addAll(cache.getAllProfessors().values());
         if (!profBox.getItems().isEmpty()) profBox.getSelectionModel().selectFirst();
-        TextField enrollField = new TextField(); enrollField.setPromptText("Enrollment count");
+        TextField enrollField = new TextField(); enrollField.setPromptText("Enrollment count (required)");
 
         grid.add(new Label("Code:"), 0, 0); grid.add(codeField, 1, 0);
         grid.add(new Label("Professor:"), 0, 1); grid.add(profBox, 1, 1);
@@ -848,11 +880,19 @@ public class DashboardController {
 
         ButtonType okBtn = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(okBtn, ButtonType.CANCEL);
+        Node addBtn = dialog.getDialogPane().lookupButton(okBtn);
+        addBtn.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> codeField.getText().trim().isEmpty()
+                || profBox.getValue() == null
+                || !isPositiveInteger(enrollField.getText().trim()),
+            codeField.textProperty(),
+            profBox.valueProperty(),
+            enrollField.textProperty()
+        ));
 
         dialog.setResultConverter(btn -> {
             if (btn == okBtn && !codeField.getText().trim().isEmpty() && profBox.getValue() != null) {
-                Integer enroll = null;
-                try { enroll = Integer.parseInt(enrollField.getText().trim()); } catch (NumberFormatException ignored) {}
+            Integer enroll = Integer.parseInt(enrollField.getText().trim());
                 return new Course(null, codeField.getText().trim(), profBox.getValue().getProfId(), enroll);
             }
             return null;
@@ -885,7 +925,7 @@ public class DashboardController {
 
         TextField buildingField = new TextField(); buildingField.setPromptText("Building name");
         TextField roomField = new TextField(); roomField.setPromptText("Room number");
-        TextField capField = new TextField(); capField.setPromptText("Capacity");
+        TextField capField = new TextField(); capField.setPromptText("Capacity (required)");
         CheckBox projBox = new CheckBox("Has Projector");
 
         grid.add(new Label("Building:"), 0, 0); grid.add(buildingField, 1, 0);
@@ -896,11 +936,19 @@ public class DashboardController {
 
         ButtonType okBtn = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(okBtn, ButtonType.CANCEL);
+        Node addBtn = dialog.getDialogPane().lookupButton(okBtn);
+        addBtn.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> buildingField.getText().trim().isEmpty()
+                || roomField.getText().trim().isEmpty()
+                || !isPositiveInteger(capField.getText().trim()),
+            buildingField.textProperty(),
+            roomField.textProperty(),
+            capField.textProperty()
+        ));
 
         dialog.setResultConverter(btn -> {
             if (btn == okBtn && !buildingField.getText().trim().isEmpty() && !roomField.getText().trim().isEmpty()) {
-                Integer cap = null;
-                try { cap = Integer.parseInt(capField.getText().trim()); } catch (NumberFormatException ignored) {}
+            Integer cap = Integer.parseInt(capField.getText().trim());
                 return new Location(null, buildingField.getText().trim(), roomField.getText().trim(),
                         cap, projBox.isSelected() ? 1 : 0);
             }
@@ -947,8 +995,8 @@ public class DashboardController {
         locBox.setPromptText("(Optional – leave for online)");
         locBox.getItems().addAll(cache.getAllLocations().values());
 
-        TextField startField = new TextField(); startField.setPromptText("yyyy-MM-dd HH:mm");
-        TextField endField = new TextField(); endField.setPromptText("yyyy-MM-dd HH:mm");
+        TextField startField = new TextField(); startField.setPromptText("yyyy-MM-dd HH:mm (UTC)");
+        TextField endField = new TextField(); endField.setPromptText("yyyy-MM-dd HH:mm (UTC)");
 
         grid.add(new Label("Course:"), 0, 0); grid.add(courseBox, 1, 0);
         grid.add(new Label("Type:"), 0, 1); grid.add(typeBox, 1, 1);
@@ -959,17 +1007,25 @@ public class DashboardController {
 
         ButtonType okBtn = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(okBtn, ButtonType.CANCEL);
+        Node addBtn = dialog.getDialogPane().lookupButton(okBtn);
+        addBtn.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> courseBox.getValue() == null
+                        || typeBox.getValue() == null
+                        || !isValidDateTimeRange(startField.getText(), endField.getText()),
+                courseBox.valueProperty(),
+                typeBox.valueProperty(),
+                startField.textProperty(),
+                endField.textProperty()
+        ));
 
         dialog.setResultConverter(btn -> {
             if (btn != okBtn || courseBox.getValue() == null) return null;
-            try {
-                Long start = DATE_FMT.parse(startField.getText().trim()).getTime();
-                Long end = DATE_FMT.parse(endField.getText().trim()).getTime();
-                if (end <= start) return null;
-                Integer locId = locBox.getValue() != null ? locBox.getValue().getLocId() : null;
-                ScheduledEvent.EventType et = ScheduledEvent.EventType.fromString(typeBox.getValue());
-                return new ScheduledEvent(null, courseBox.getValue().getCourseId(), locId, et, start, end);
-            } catch (Exception ex) { return null; }
+            Long start = TimePolicy.parseDateTime(startField.getText().trim());
+            Long end = TimePolicy.parseDateTime(endField.getText().trim());
+            if (start == null || end == null || end <= start) return null;
+            Integer locId = locBox.getValue() != null ? locBox.getValue().getLocId() : null;
+            ScheduledEvent.EventType et = ScheduledEvent.EventType.fromString(typeBox.getValue());
+            return new ScheduledEvent(null, courseBox.getValue().getCourseId(), locId, et, start, end);
         });
         dialog.showAndWait().ifPresent(event -> {
             runDbTask(
@@ -1038,13 +1094,11 @@ public class DashboardController {
                     .ifPresent(locBox::setValue);
         }
 
-        TextField startField = new TextField(selected.getStartEpoch() != null
-                ? DATE_FMT.format(new Date(selected.getStartEpoch())) : "");
-        startField.setPromptText("yyyy-MM-dd HH:mm");
+        TextField startField = new TextField(TimePolicy.formatEpoch(selected.getStartEpoch()));
+        startField.setPromptText("yyyy-MM-dd HH:mm (UTC)");
 
-        TextField endField = new TextField(selected.getEndEpoch() != null
-                ? DATE_FMT.format(new Date(selected.getEndEpoch())) : "");
-        endField.setPromptText("yyyy-MM-dd HH:mm");
+        TextField endField = new TextField(TimePolicy.formatEpoch(selected.getEndEpoch()));
+        endField.setPromptText("yyyy-MM-dd HH:mm (UTC)");
 
         grid.add(new Label("Course:"), 0, 0); grid.add(courseBox, 1, 0);
         grid.add(new Label("Type:"), 0, 1); grid.add(typeBox, 1, 1);
@@ -1055,31 +1109,37 @@ public class DashboardController {
 
         ButtonType saveBtn = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
+        Node saveButton = dialog.getDialogPane().lookupButton(saveBtn);
+        saveButton.disableProperty().bind(Bindings.createBooleanBinding(
+            () -> courseBox.getValue() == null
+                || typeBox.getValue() == null
+                || !isValidDateTimeRange(startField.getText(), endField.getText()),
+            courseBox.valueProperty(),
+            typeBox.valueProperty(),
+            startField.textProperty(),
+            endField.textProperty()
+        ));
 
         dialog.setResultConverter(btn -> {
             if (btn != saveBtn || courseBox.getValue() == null) {
                 return null;
             }
-            try {
-                Long start = DATE_FMT.parse(startField.getText().trim()).getTime();
-                Long end = DATE_FMT.parse(endField.getText().trim()).getTime();
-                if (end <= start) {
-                    return null;
-                }
-                Integer locId = locBox.getValue() != null ? locBox.getValue().getLocId() : null;
-                ScheduledEvent.EventType et = ScheduledEvent.EventType.fromString(typeBox.getValue());
-                ScheduledEvent updated = new ScheduledEvent(
-                        selected.getEventId(),
-                        courseBox.getValue().getCourseId(),
-                        locId,
-                        et,
-                        start,
-                        end
-                );
-                return updated;
-            } catch (Exception ex) {
+            Long start = TimePolicy.parseDateTime(startField.getText().trim());
+            Long end = TimePolicy.parseDateTime(endField.getText().trim());
+            if (start == null || end == null || end <= start) {
                 return null;
             }
+            Integer locId = locBox.getValue() != null ? locBox.getValue().getLocId() : null;
+            ScheduledEvent.EventType et = ScheduledEvent.EventType.fromString(typeBox.getValue());
+            ScheduledEvent updated = new ScheduledEvent(
+                    selected.getEventId(),
+                    courseBox.getValue().getCourseId(),
+                    locId,
+                    et,
+                    start,
+                    end
+            );
+            return updated;
         });
 
         dialog.showAndWait().ifPresent(updated -> runDbTask(
