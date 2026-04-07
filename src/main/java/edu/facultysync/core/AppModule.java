@@ -19,6 +19,13 @@ public record AppModule(
         ConflictEngine conflictEngine,
         EventBus eventBus
 ) {
+    /**
+     * Builds a fully wired application module from the database manager.
+     *
+     * @param dbManager shared database manager used by DAOs and services
+     * @return initialized module containing cache, conflict engine, and UI event bus
+     * @throws SQLException if cache bootstrap fails
+     */
     public static AppModule create(DatabaseManager dbManager) throws SQLException {
         DataCache cache = new DataCache(dbManager);
         cache.refresh();
