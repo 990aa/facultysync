@@ -32,6 +32,10 @@ public class App extends Application {
 
     private DatabaseManager dbManager;
 
+    static String windowTitle() {
+        return "FacultySync";
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception {
         // Initialize database
@@ -61,7 +65,7 @@ public class App extends Application {
         DashboardController dashboard = new DashboardController(appModule, primaryStage);
 
         // Wrap with custom title bar
-        CustomTitleBar titleBar = new CustomTitleBar(primaryStage, "FacultySync");
+        CustomTitleBar titleBar = new CustomTitleBar(primaryStage, windowTitle());
         VBox appContainer = new VBox();
         appContainer.getChildren().addAll(titleBar, dashboard.getRoot());
         VBox.setVgrow(dashboard.getRoot(), javafx.scene.layout.Priority.ALWAYS);

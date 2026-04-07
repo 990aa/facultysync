@@ -4,7 +4,9 @@ import edu.facultysync.model.*;
 import org.junit.jupiter.api.*;
 
 import java.sql.SQLException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -260,6 +262,44 @@ class SeedDataTest {
         assertTrue(tightTransitions >= 1, "Should have at least 1 tight transition conflict. Got: " + tightTransitions);
     }
 
+    @Test
+    void seed_hasProfessorOverlapConflicts() throws SQLException {
+        SeedData.seed(dbManager);
+
+        edu.facultysync.service.DataCache cache = new edu.facultysync.service.DataCache(dbManager);
+        cache.refresh();
+        edu.facultysync.service.ConflictEngine engine = new edu.facultysync.service.ConflictEngine(dbManager, cache);
+        List<edu.facultysync.model.ConflictResult> conflicts = engine.analyzeAll();
+
+        long professorOverlaps = conflicts.stream()
+                .filter(c -> c.getSeverity() == edu.facultysync.model.ConflictResult.Severity.PROFESSOR_OVERLAP)
+                .count();
+        assertTrue(professorOverlaps >= 1,
+                "Should have at least 1 professor overlap conflict. Got: " + professorOverlaps);
+    }
+
+    @Test
+    void seed_conflictsCoverEveryDepartment() throws SQLException {
+        SeedData.seed(dbManager);
+
+        edu.facultysync.service.DataCache cache = new edu.facultysync.service.DataCache(dbManager);
+        cache.refresh();
+        edu.facultysync.service.ConflictEngine engine = new edu.facultysync.service.ConflictEngine(dbManager, cache);
+        List<edu.facultysync.model.ConflictResult> conflicts = engine.analyzeAll();
+
+        Set<String> departmentsInConflicts = new HashSet<>();
+        for (edu.facultysync.model.ConflictResult conflict : conflicts) {
+            collectDepartment(conflict.getEventA(), cache, departmentsInConflicts);
+            collectDepartment(conflict.getEventB(), cache, departmentsInConflicts);
+        }
+
+        assertTrue(departmentsInConflicts.contains("Computer Science"));
+        assertTrue(departmentsInConflicts.contains("Mathematics"));
+        assertTrue(departmentsInConflicts.contains("Physics"));
+        assertTrue(departmentsInConflicts.contains("Engineering"));
+        assertTrue(departmentsInConflicts.contains("Business"));
+    }
+
         @Test
         void ensureIntentionalConflicts_restoresDemoConflicts() throws SQLException {
         SeedData.seed(dbManager);
@@ -329,5 +369,25 @@ class SeedDataTest {
 
         List<Professor> csProfs = profDao.findByDepartment(cs.getDeptId());
         assertTrue(csProfs.size() >= 3, "CS should have at least 3 professors");
+    }
+
+    private void collectDepartment(ScheduledEvent event,
+                                   edu.facultysync.service.DataCache cache,
+                                   Set<String> out) {
+        if (event == null || event.getCourseId() == null) {
+            return;
+        }
+        Course course = cache.getCourse(event.getCourseId());
+        if (course == null || course.getProfId() == null) {
+            return;
+        }
+        Professor professor = cache.getProfessor(course.getProfId());
+        if (professor == null || professor.getDeptId() == null) {
+            return;
+        }
+        Department department = cache.getDepartment(professor.getDeptId());
+        if (department != null && department.getName() != null) {
+            out.add(department.getName());
+        }
     }
 }
