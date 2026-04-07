@@ -5,15 +5,18 @@ import edu.facultysync.db.ScheduledEventDAO;
 import edu.facultysync.model.ScheduledEvent;
 import edu.facultysync.service.DataCache;
 
+import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TabPane;
 import javafx.scene.layout.*;
 
 import java.sql.SQLException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -34,7 +37,9 @@ public class HomePage {
         this.dbManager = dbManager;
         this.cache = cache;
         this.tabPane = tabPane;
-        this.content = buildContent();
+        this.content = new VBox();
+        this.content.getStyleClass().add("home-page");
+        refresh();
     }
 
     public VBox getContent() {
@@ -43,26 +48,86 @@ public class HomePage {
 
     /** Refresh statistics when tab is selected. */
     public void refresh() {
-        try {
-            cache.refresh();
-        } catch (SQLException ignored) {}
-        content.getChildren().clear();
-        VBox newContent = buildContent();
-        content.getChildren().addAll(newContent.getChildren());
+        showLoadingState();
+
+        Task<HomeSnapshot> task = new Task<>() {
+            @Override
+            protected HomeSnapshot call() throws Exception {
+                cache.refresh();
+                List<ScheduledEvent> events = new ScheduledEventDAO(dbManager).findAll();
+                cache.enrichAll(events);
+
+                HomeSnapshot snapshot = new HomeSnapshot();
+                snapshot.eventCount = events.size();
+                snapshot.courseCount = cache.getAllCourses().size();
+                snapshot.profCount = cache.getAllProfessors().size();
+                snapshot.roomCount = cache.getAllLocations().size();
+                snapshot.deptCount = cache.getAllDepartments().size();
+
+                int start = Math.max(0, events.size() - 8);
+                for (int i = events.size() - 1; i >= start; i--) {
+                    snapshot.recentEvents.add(events.get(i));
+                }
+                return snapshot;
+            }
+        };
+
+        task.setOnSucceeded(e -> {
+            VBox newContent = buildContent(task.getValue());
+            content.getChildren().setAll(newContent.getChildren());
+        });
+        task.setOnFailed(e -> showErrorState(task.getException()));
+
+        Thread thread = new Thread(task, "HomePageRefresh");
+        thread.setDaemon(true);
+        thread.start();
     }
 
-    private VBox buildContent() {
+    private void showLoadingState() {
+        VBox loadingBox = new VBox(12);
+        loadingBox.setAlignment(Pos.CENTER);
+        loadingBox.setPadding(new Insets(48));
+
+        ProgressIndicator spinner = new ProgressIndicator();
+        spinner.setMaxSize(42, 42);
+
+        Label loadingLabel = new Label("Loading dashboard data...");
+        loadingLabel.getStyleClass().add("empty-state-desc");
+
+        loadingBox.getChildren().addAll(spinner, loadingLabel);
+        content.getChildren().setAll(loadingBox);
+    }
+
+    private void showErrorState(Throwable error) {
+        VBox errorBox = new VBox(8);
+        errorBox.setAlignment(Pos.CENTER);
+        errorBox.setPadding(new Insets(48));
+
+        Label title = new Label("Could not load home dashboard");
+        title.getStyleClass().add("empty-state-title");
+
+        String message = error != null && error.getMessage() != null
+                ? error.getMessage()
+                : "Unknown error";
+        Label detail = new Label(message);
+        detail.getStyleClass().add("empty-state-desc");
+
+        errorBox.getChildren().addAll(title, detail);
+        content.getChildren().setAll(errorBox);
+    }
+
+    private VBox buildContent(HomeSnapshot snapshot) {
         VBox root = new VBox(0);
         root.getStyleClass().add("home-page");
 
         // Hero section
         VBox hero = buildHeroSection();
         // Stats cards
-        HBox statsRow = buildStatsRow();
+        HBox statsRow = buildStatsRow(snapshot);
         // Quick actions
         VBox quickActions = buildQuickActions();
         // Recent activity
-        VBox recentActivity = buildRecentActivity();
+        VBox recentActivity = buildRecentActivity(snapshot.recentEvents);
 
         VBox innerContent = new VBox(24, hero, statsRow, quickActions, recentActivity);
         innerContent.setPadding(new Insets(30, 40, 30, 40));
@@ -99,26 +164,16 @@ public class HomePage {
         return hero;
     }
 
-    private HBox buildStatsRow() {
-        int eventCount = 0;
-        int courseCount = cache.getAllCourses().size();
-        int profCount = cache.getAllProfessors().size();
-        int roomCount = cache.getAllLocations().size();
-        int deptCount = cache.getAllDepartments().size();
-
-        try {
-            eventCount = new ScheduledEventDAO(dbManager).findAll().size();
-        } catch (SQLException ignored) {}
-
+    private HBox buildStatsRow(HomeSnapshot snapshot) {
         HBox row = new HBox(16);
         row.setAlignment(Pos.CENTER);
 
         row.getChildren().addAll(
-                buildStatCard("\uD83D\uDCC5", "Events", String.valueOf(eventCount), "stat-card-blue"),
-                buildStatCard("\uD83D\uDCDA", "Courses", String.valueOf(courseCount), "stat-card-green"),
-                buildStatCard("\uD83D\uDC68\u200D\uD83C\uDFEB", "Professors", String.valueOf(profCount), "stat-card-purple"),
-                buildStatCard("\uD83C\uDFE2", "Rooms", String.valueOf(roomCount), "stat-card-orange"),
-                buildStatCard("\uD83C\uDFDB", "Departments", String.valueOf(deptCount), "stat-card-teal")
+                buildStatCard("\uD83D\uDCC5", "Events", String.valueOf(snapshot.eventCount), "stat-card-blue"),
+                buildStatCard("\uD83D\uDCDA", "Courses", String.valueOf(snapshot.courseCount), "stat-card-green"),
+                buildStatCard("\uD83D\uDC68\u200D\uD83C\uDFEB", "Professors", String.valueOf(snapshot.profCount), "stat-card-purple"),
+                buildStatCard("\uD83C\uDFE2", "Rooms", String.valueOf(snapshot.roomCount), "stat-card-orange"),
+                buildStatCard("\uD83C\uDFDB", "Departments", String.valueOf(snapshot.deptCount), "stat-card-teal")
         );
 
         return row;
@@ -193,7 +248,7 @@ public class HomePage {
         return card;
     }
 
-    private VBox buildRecentActivity() {
+    private VBox buildRecentActivity(List<ScheduledEvent> recentEvents) {
         Label sectionTitle = new Label("\uD83D\uDD53 Recent Events");
         sectionTitle.getStyleClass().add("section-title");
 
@@ -201,25 +256,15 @@ public class HomePage {
         activityList.getStyleClass().add("activity-list");
         activityList.setPadding(new Insets(12));
 
-        try {
-            List<ScheduledEvent> events = new ScheduledEventDAO(dbManager).findAll();
-            cache.enrichAll(events);
-
-            if (events.isEmpty()) {
-                Label empty = new Label("\uD83D\uDCED  No events yet. Import a CSV or add events to get started!");
-                empty.getStyleClass().add("empty-state-label");
-                empty.setWrapText(true);
-                activityList.getChildren().add(empty);
-            } else {
-                // Show last 8 events
-                int start = Math.max(0, events.size() - 8);
-                for (int i = events.size() - 1; i >= start; i--) {
-                    ScheduledEvent ev = events.get(i);
-                    activityList.getChildren().add(buildActivityRow(ev));
-                }
+        if (recentEvents.isEmpty()) {
+            Label empty = new Label("\uD83D\uDCED  No events yet. Import a CSV or add events to get started!");
+            empty.getStyleClass().add("empty-state-label");
+            empty.setWrapText(true);
+            activityList.getChildren().add(empty);
+        } else {
+            for (ScheduledEvent ev : recentEvents) {
+                activityList.getChildren().add(buildActivityRow(ev));
             }
-        } catch (SQLException ex) {
-            activityList.getChildren().add(new Label("Could not load recent events."));
         }
 
         VBox section = new VBox(12, sectionTitle, activityList);
@@ -265,5 +310,14 @@ public class HomePage {
         row.getStyleClass().add("activity-row");
         row.setPadding(new Insets(8, 12, 8, 12));
         return row;
+    }
+
+    private static class HomeSnapshot {
+        int eventCount;
+        int courseCount;
+        int profCount;
+        int roomCount;
+        int deptCount;
+        List<ScheduledEvent> recentEvents = new ArrayList<>();
     }
 }
