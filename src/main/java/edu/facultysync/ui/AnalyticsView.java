@@ -6,7 +6,6 @@ import edu.facultysync.model.*;
 import edu.facultysync.service.ConflictEngine;
 import edu.facultysync.service.DataCache;
 
-import javafx.collections.FXCollections;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -17,7 +16,6 @@ import javafx.scene.layout.*;
 
 import java.sql.SQLException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Analytics Dashboard with interactive charts.

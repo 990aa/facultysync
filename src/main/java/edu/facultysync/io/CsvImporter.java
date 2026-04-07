@@ -163,7 +163,7 @@ public class CsvImporter {
     private List<CsvRow> readCsv(File file) throws IOException {
         List<CsvRow> rows = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String header = br.readLine(); // skip header
+            br.readLine(); // skip header
             String line;
             int rowNumber = 2;
             while ((line = br.readLine()) != null) {
