@@ -1,9 +1,8 @@
 package edu.facultysync.ui;
 
-import com.google.common.eventbus.EventBus;
-import com.google.common.eventbus.Subscribe;
 import edu.facultysync.db.DatabaseManager;
 import edu.facultysync.db.ScheduledEventDAO;
+import edu.facultysync.events.AppEventBus;
 import edu.facultysync.events.DataChangedEvent;
 import edu.facultysync.model.ConflictResult;
 import edu.facultysync.model.Course;
@@ -72,7 +71,7 @@ public class CalendarView {
     private final DatabaseManager dbManager;
     private final DataCache cache;
     private final ConflictEngine conflictEngine;
-    private final EventBus eventBus;
+    private final AppEventBus eventBus;
     private final VBox root;
 
     private GridPane calendarGrid;
@@ -91,7 +90,7 @@ public class CalendarView {
         this(dbManager, cache, null);
     }
 
-    public CalendarView(DatabaseManager dbManager, DataCache cache, EventBus eventBus) {
+    public CalendarView(DatabaseManager dbManager, DataCache cache, AppEventBus eventBus) {
         this.dbManager = dbManager;
         this.cache = cache;
         this.conflictEngine = new ConflictEngine(dbManager, cache);
@@ -100,12 +99,11 @@ public class CalendarView {
         setWeekFromDate(LocalDate.now());
         root = buildView();
         if (this.eventBus != null) {
-            this.eventBus.register(this);
+            this.eventBus.subscribe(DataChangedEvent.class, this::onDataChanged);
         }
         refresh();
     }
 
-    @Subscribe
     public void onDataChanged(DataChangedEvent event) {
         Platform.runLater(this::refresh);
     }
