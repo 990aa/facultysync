@@ -85,6 +85,25 @@ class IoTest {
     }
 
     @Test
+    void import_reportIncludesSkippedRows() throws Exception {
+        File csv = tempDir.resolve("report_failures.csv").toFile();
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(csv))) {
+            bw.write("course_code,event_type,building,room_number,start_datetime,end_datetime\n");
+            bw.write("UNKNOWN999,Lecture,Science Hall,101,2026-04-01 09:00,2026-04-01 10:00\n");
+            bw.write("CS101,Exam,Science Hall,101,2026-04-02 10:00,2026-04-02 12:00\n");
+        }
+
+        CsvImporter importer = new CsvImporter(dbManager);
+        CsvImporter.ImportReport report = importer.importFileWithReport(csv, null);
+
+        assertEquals(2, report.getTotalRows());
+        assertEquals(1, report.getImportedCount());
+        assertEquals(1, report.getFailureCount());
+        assertEquals(2, report.getFailures().get(0).getRowNumber());
+        assertTrue(report.getFailures().get(0).getReason().contains("Unknown course code"));
+    }
+
+    @Test
     void import_unknownCourse() throws Exception {
         File csv = tempDir.resolve("unknown.csv").toFile();
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(csv))) {

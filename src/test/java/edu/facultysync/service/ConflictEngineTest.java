@@ -177,6 +177,29 @@ class ConflictEngineTest {
     }
 
     @Test
+    void configurableTightTransitionThreshold() throws SQLException {
+        System.setProperty("facultysync.tightTransitionMinutes", "3");
+        try {
+            ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);
+            long baseTime = 300_000_000L;
+
+            dao.insert(new ScheduledEvent(null, courseA, locId1, EventType.LECTURE,
+                    baseTime, baseTime + 60 * 60_000L));
+            dao.insert(new ScheduledEvent(null, courseB, locId2, EventType.LECTURE,
+                    baseTime + 60 * 60_000L + 5 * 60_000L,
+                    baseTime + 120 * 60_000L + 5 * 60_000L));
+
+            ConflictEngine configured = new ConflictEngine(dbManager, cache);
+            assertEquals(3 * 60_000L, configured.getTightTransitionThresholdMs());
+
+            List<ConflictResult> conflicts = configured.analyzeAll();
+            assertFalse(conflicts.stream().anyMatch(c -> c.getSeverity() == Severity.TIGHT_TRANSITION));
+        } finally {
+            System.clearProperty("facultysync.tightTransitionMinutes");
+        }
+    }
+
+    @Test
     void noTightTransition_sameBuilding() throws SQLException {
         ScheduledEventDAO dao = new ScheduledEventDAO(dbManager);
         // Same building – no transition issue even with short gap
