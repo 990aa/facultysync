@@ -169,8 +169,9 @@ public class SeedData {
         Course math201 = findCourseByDemoCode(courseDao, "MATH201");
         Course phys101 = findCourseByDemoCode(courseDao, "PHYS101");
         Course eng101 = findCourseByDemoCode(courseDao, "ENG101");
+        Course bus101 = findCourseByDemoCode(courseDao, "BUS101");
         if (cs101 == null || cs201 == null || cs401 == null
-            || math201 == null || phys101 == null || eng101 == null) {
+            || math201 == null || phys101 == null || eng101 == null || bus101 == null) {
             return;
         }
 
